@@ -13,7 +13,9 @@ import { getCurrentUser } from "@/lib/auth";
  */
 export default async function DashboardLayout({
   children,
-}: LayoutProps<"/">) {
+}: {
+  children: React.ReactNode;
+}) {
   const user = await getCurrentUser();
 
   return (

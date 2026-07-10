@@ -1,88 +1,77 @@
 "use client";
 
-import { memo, useCallback, useDeferredValue, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Download, Search } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import {
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+  type SortingState,
+  type Updater,
+} from "@tanstack/react-table";
+import { ChevronLeft, ChevronRight, Download, Loader2, Search } from "lucide-react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { STATUS_META, StatusBadge } from "@/components/reconciliation/status-badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  SETTLEMENT_LABELS,
+  reconColumns,
+  rowHighlightClass,
+} from "@/components/reconciliation/columns";
+import { STATUS_META } from "@/components/reconciliation/status-badge";
+import { useReconciliationPage } from "@/hooks/use-reconciliations";
 import { maskAmount } from "@/lib/rbac";
-import type {
-  ReconStatus,
-  ReconciliationRow,
-  SettlementStatus,
-  UserRole,
-} from "@/lib/types";
-import { cn, krw, num } from "@/lib/utils";
+import {
+  createDefaultParams,
+  fetchAllFiltered,
+  type ComparisonScope,
+  type ReconPageParams,
+  type ReconSortKey,
+} from "@/lib/recon";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { RECON_STATUSES, type ReconciliationRow, type UserRole } from "@/lib/types";
+import { cn, num } from "@/lib/utils";
 
 /**
- * 재무 대사 DataTable (클라이언트 컴포넌트).
+ * 재무 대사 DataTable (TanStack Table + 서버 사이드 페이지네이션).
  *
- * 성능 전략 (AGENTS.md 2.2 — 대량 데이터 핸들링):
- * - 필터링/페이지네이션 결과는 전부 `useMemo`로 파생 → 무관한 상태 변경 시 재계산 없음.
- * - 행은 `memo()`된 `ReconRowItem`으로 분리 → 필터 입력 타이핑 중 기존 행 리렌더링 방지.
- * - 검색어는 `useDeferredValue`로 디바운싱과 동등한 효과(입력 응답성 우선)를 얻는다.
- * - 수만 건 규모로 확장 시: 페이지네이션을 서버 사이드로 옮기거나
- *   TanStack Virtual 기반 가상 스크롤로 교체하는 것을 전제로 행 구조를 단순하게 유지했다.
+ * 데이터 전략 (AGENTS.md 2.2 — 대량 데이터 핸들링):
+ * - 항상 "현재 페이지 1개"만 Supabase에서 가져온다 (.range).
+ *   페이지 이동·필터·검색·정렬 변경 시 해당 조합의 쿼리만 재실행되고,
+ *   필터/정렬은 전부 DB로 push-down 되어 인덱스를 탄다.
+ * - TanStack Table은 manual 모드(manualPagination/Sorting/Filtering)로
+ *   상태 관리와 렌더링만 담당한다.
+ * - TanStack Query가 파라미터 조합별로 캐시 → 방문한 페이지 재진입 시 무요청.
+ * - keepPreviousData로 페이지 전환 중 이전 행을 유지해 깜빡임을 제거한다.
+ * - 검색어는 useDeferredValue로 지연시켜 타이핑 중 요청 폭주를 막는다.
  */
 
-/* ------------------------------------------------------------------ */
-/* 필터 정의                                                            */
-/* ------------------------------------------------------------------ */
+const ALL = "ALL" as const;
 
-/** 시스템별 비교 관점 — 어떤 두 시스템을 대조할지 선택 */
-type ComparisonScope = "ALL" | "OMS_WMS" | "OMS_PG";
-
-interface Filters {
-  dateFrom: string;
-  dateTo: string;
-  status: ReconStatus | "ALL";
-  settlement: SettlementStatus | "ALL";
-  scope: ComparisonScope;
-  keyword: string;
-}
-
-const INITIAL_FILTERS: Filters = {
-  dateFrom: "",
-  dateTo: "",
-  status: "ALL",
-  settlement: "ALL",
-  scope: "ALL",
-  keyword: "",
-};
-
-const SETTLEMENT_LABELS: Record<SettlementStatus, string> = {
-  PENDING: "정산예정",
-  CONFIRMED: "정산확정",
-  PAID: "지급완료",
-  HOLD: "보류",
-};
-
-/** 비교 관점별 판정: 이 행이 해당 두 시스템 간 이슈와 관련 있는가 */
-function matchesScope(row: ReconciliationRow, scope: ComparisonScope): boolean {
-  if (scope === "ALL") return true;
-  if (scope === "OMS_WMS") {
-    // 출고 검증: 주문↔출고 간 누락 또는 수량/금액 상이
-    if (!row.oms || !row.wms) return true;
-    return (
-      row.oms.quantity !== row.wms.quantity ||
-      row.oms.amount !== row.wms.amount
-    );
-  }
-  // OMS_PG — 정산 검증: 주문↔PG 정산 간 누락 또는 금액 상이
-  if (!row.oms || !row.pg) return true;
-  return row.oms.amount !== row.pg.amount;
-}
-
-/* ------------------------------------------------------------------ */
-/* 엑셀(CSV) 다운로드                                                   */
-/* ------------------------------------------------------------------ */
+/** 필터 셀렉트 공통 폭 — 모바일에서는 그리드 셀을 꽉 채운다 */
+const FILTER_TRIGGER_CLASS = "w-full min-w-32 sm:w-auto";
 
 /**
- * 현재 필터가 적용된 결과를 CSV로 내려받는다.
- * - UTF-8 BOM을 붙여 한글 Excel에서 인코딩이 깨지지 않도록 한다.
- * - 권한 마스킹은 화면과 동일하게 적용 → VIEWER가 내보내도 금액이 노출되지 않는다.
+ * CSV 다운로드 — 현재 필터의 "전체" 행을 서버에서 별도 조회해 내보낸다.
+ * UTF-8 BOM(\uFEFF)으로 한글 Excel 인코딩 깨짐을 방지하고,
+ * 권한 마스킹을 화면과 동일하게 적용해 내보내기 우회를 차단한다.
  */
-function downloadCsv(rows: ReconciliationRow[], role: UserRole) {
+function buildCsv(rows: ReconciliationRow[], role: UserRole): Blob {
   const header = [
     "주문번호", "채널", "거래일자",
     "OMS 금액", "WMS 금액", "PG 정산금액", "차액",
@@ -105,311 +94,391 @@ function downloadCsv(rows: ReconciliationRow[], role: UserRole) {
       STATUS_META[row.status].label,
       row.statusReason ?? "",
     ]
-      // CSV 이스케이프: 사유 문장에 쉼표/따옴표가 포함될 수 있다
       .map((cell) => `"${String(cell).replaceAll('"', '""')}"`)
       .join(","),
   );
 
-  // "\uFEFF" = UTF-8 BOM — 한글 Excel이 CSV를 UTF-8로 인식하게 하는 필수 처리
-  const blob = new Blob(["\uFEFF" + [header.join(","), ...lines].join("\n")], {
+  return new Blob(["\uFEFF" + [header.join(","), ...lines].join("\n")], {
     type: "text/csv;charset=utf-8",
   });
+}
+
+function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `reconciliation_${new Date().toISOString().slice(0, 10)}.csv`;
+  anchor.download = filename;
   anchor.click();
   URL.revokeObjectURL(url);
 }
 
-/* ------------------------------------------------------------------ */
-/* 행 컴포넌트 (memo)                                                   */
-/* ------------------------------------------------------------------ */
-
-/** 금액 셀 — 누락(null)은 경고 텍스트로, 정상 값은 우측 정렬 숫자로 표기 */
-function AmountCell({
-  amount,
-  role,
-}: {
-  amount: number | null | undefined;
-  role: UserRole;
-}) {
-  if (amount == null) {
-    return <span className="text-xs font-medium text-red-600">누락</span>;
-  }
-  return <span className="tabular-nums">{maskAmount(krw.format(amount), role)}</span>;
-}
-
-/**
- * 대사 결과 한 행.
- * `memo`로 감싸 필터 상태 변경 시 살아남는 행의 리렌더링을 차단한다
- * (row/role 참조가 동일하면 스킵).
- */
-const ReconRowItem = memo(function ReconRowItem({
-  row,
-  role,
-}: {
-  row: ReconciliationRow;
-  role: UserRole;
-}) {
-  const hasDiff = row.amountDiff != null && row.amountDiff !== 0;
-
-  return (
-    <tr
-      className={cn(
-        "border-b border-zinc-100 text-sm text-zinc-700 transition-colors hover:bg-zinc-50",
-        // 상태별 행 하이라이트 — 불일치(red)/중복·누락(amber)을 즉시 인지
-        STATUS_META[row.status].rowClass,
-      )}
-    >
-      <td className="px-3 py-2.5 font-medium text-zinc-900">{row.orderNo}</td>
-      <td className="px-3 py-2.5">{row.channel}</td>
-      <td className="px-3 py-2.5 tabular-nums">{row.transactionDate}</td>
-      <td className="px-3 py-2.5 text-right">
-        <AmountCell amount={row.oms?.amount ?? null} role={role} />
-      </td>
-      <td className="px-3 py-2.5 text-right">
-        <AmountCell amount={row.wms?.amount ?? null} role={role} />
-      </td>
-      <td className="px-3 py-2.5 text-right">
-        <AmountCell amount={row.pg?.amount ?? null} role={role} />
-      </td>
-      <td
-        className={cn(
-          "px-3 py-2.5 text-right tabular-nums",
-          hasDiff && "font-semibold text-red-600",
-        )}
-      >
-        {row.amountDiff == null
-          ? "—"
-          : maskAmount(krw.format(row.amountDiff), role)}
-      </td>
-      <td className="px-3 py-2.5">
-        <Badge variant={row.settlementStatus === "HOLD" ? "warning" : "outline"}>
-          {SETTLEMENT_LABELS[row.settlementStatus]}
-        </Badge>
-      </td>
-      <td className="px-3 py-2.5">
-        <StatusBadge status={row.status} reason={row.statusReason} />
-      </td>
-    </tr>
-  );
-});
-
-/* ------------------------------------------------------------------ */
-/* 메인 테이블                                                          */
-/* ------------------------------------------------------------------ */
-
-const PAGE_SIZE = 8;
-
-const SELECT_CLASS =
-  "h-9 rounded-md border border-zinc-300 bg-white px-2.5 text-sm text-zinc-700 focus-visible:outline-2 focus-visible:outline-zinc-900";
-
 export function DataTable({
-  rows,
   role,
+  channels,
 }: {
-  rows: ReconciliationRow[];
   role: UserRole;
+  /** 채널 필터 옵션 — recon_summary RPC가 내려준 전체 채널 목록 */
+  channels: string[];
 }) {
-  const [filters, setFilters] = useState<Filters>(INITIAL_FILTERS);
-  const [page, setPage] = useState(1);
+  const [params, setParams] = useState<ReconPageParams>(createDefaultParams);
+  const [keyword, setKeyword] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
 
-  // 검색어 입력은 즉시 반영하되, 대량 행 필터링은 지연 값으로 수행해
-  // 타이핑 프레임 드랍을 막는다 (디바운싱과 동등한 UX).
-  const deferredKeyword = useDeferredValue(filters.keyword);
+  // 검색어 타이핑마다 서버 요청이 나가지 않도록 지연 값으로 쿼리를 구성한다
+  const deferredKeyword = useDeferredValue(keyword);
+  const queryParams = useMemo<ReconPageParams>(
+    () => ({ ...params, keyword: deferredKeyword }),
+    [params, deferredKeyword],
+  );
 
-  /** 필터 변경 핸들러 — 필터가 바뀌면 1페이지로 리셋 */
-  const updateFilter = useCallback(
-    <K extends keyof Filters>(key: K, value: Filters[K]) => {
-      setFilters((prev) => ({ ...prev, [key]: value }));
-      setPage(1);
+  const { data, isPending, isError, error, isPlaceholderData, isFetching } =
+    useReconciliationPage(queryParams);
+
+  const rows = data?.rows ?? [];
+  const total = data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / params.pageSize));
+
+  /** 필터류 변경 공통 처리 — 조건이 바뀌면 항상 1페이지부터 다시 본다 */
+  const updateFilter = useCallback((patch: Partial<ReconPageParams>) => {
+    setParams((prev) => ({ ...prev, ...patch, pageIndex: 0 }));
+  }, []);
+
+  // 검색어 변경도 1페이지로 리셋 (검색 결과가 현재 페이지보다 적을 수 있다)
+  useEffect(() => {
+    setParams((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
+  }, [deferredKeyword]);
+
+  // 필터 축소로 현재 페이지가 범위를 벗어나면 마지막 페이지로 보정
+  useEffect(() => {
+    if (data && !isPlaceholderData && params.pageIndex >= pageCount) {
+      setParams((prev) => ({ ...prev, pageIndex: pageCount - 1 }));
+    }
+  }, [data, isPlaceholderData, params.pageIndex, pageCount]);
+
+  /** TanStack Table 정렬 상태 ↔ 서버 파라미터 변환 */
+  const sorting = useMemo<SortingState>(
+    () => [{ id: params.sortBy, desc: params.sortDir === "desc" }],
+    [params.sortBy, params.sortDir],
+  );
+
+  const onSortingChange = useCallback(
+    (updater: Updater<SortingState>) => {
+      setParams((prev) => {
+        const current: SortingState = [
+          { id: prev.sortBy, desc: prev.sortDir === "desc" },
+        ];
+        const next = typeof updater === "function" ? updater(current) : updater;
+        const first = next[0];
+        const fallback = createDefaultParams();
+        return {
+          ...prev,
+          pageIndex: 0,
+          sortBy: (first?.id as ReconSortKey) ?? fallback.sortBy,
+          sortDir: first ? (first.desc ? "desc" : "asc") : fallback.sortDir,
+        };
+      });
     },
     [],
   );
 
-  /** 전체 필터 파이프라인 — 의존한 입력이 바뀔 때만 재계산 */
-  const filteredRows = useMemo(() => {
-    const keyword = deferredKeyword.trim().toLowerCase();
-    return rows.filter((row) => {
-      if (filters.dateFrom && row.transactionDate < filters.dateFrom) return false;
-      if (filters.dateTo && row.transactionDate > filters.dateTo) return false;
-      if (filters.status !== "ALL" && row.status !== filters.status) return false;
-      if (filters.settlement !== "ALL" && row.settlementStatus !== filters.settlement)
-        return false;
-      if (!matchesScope(row, filters.scope)) return false;
-      if (keyword && !row.orderNo.toLowerCase().includes(keyword)) return false;
-      return true;
-    });
-  }, [rows, filters.dateFrom, filters.dateTo, filters.status, filters.settlement, filters.scope, deferredKeyword]);
+  const table = useReactTable({
+    data: rows,
+    columns: reconColumns,
+    getRowId: (row) => row.id,
+    getCoreRowModel: getCoreRowModel(),
+    // 서버가 필터/정렬/페이지네이션을 수행 — 테이블은 현재 페이지 표현만 담당
+    manualPagination: true,
+    manualSorting: true,
+    manualFiltering: true,
+    pageCount,
+    state: {
+      sorting,
+      pagination: { pageIndex: params.pageIndex, pageSize: params.pageSize },
+    },
+    onSortingChange,
+    onPaginationChange: (updater) => {
+      setParams((prev) => {
+        const current = { pageIndex: prev.pageIndex, pageSize: prev.pageSize };
+        const next = typeof updater === "function" ? updater(current) : updater;
+        return {
+          ...prev,
+          pageIndex: next.pageSize !== prev.pageSize ? 0 : next.pageIndex,
+          pageSize: next.pageSize,
+        };
+      });
+    },
+    meta: { role },
+  });
 
-  const pageCount = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
-  const currentPage = Math.min(page, pageCount);
+  const handleDownload = useCallback(async () => {
+    // 보이는 페이지가 아니라 "현재 필터의 전체"를 서버에서 받아 내보낸다
+    setIsExporting(true);
+    try {
+      const allRows = await fetchAllFiltered(getSupabaseBrowserClient(), queryParams);
+      saveBlob(
+        buildCsv(allRows, role),
+        `reconciliation_${new Date().toISOString().slice(0, 10)}.csv`,
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  }, [queryParams, role]);
 
-  const pagedRows = useMemo(
-    () =>
-      filteredRows.slice(
-        (currentPage - 1) * PAGE_SIZE,
-        currentPage * PAGE_SIZE,
-      ),
-    [filteredRows, currentPage],
-  );
-
-  const handleDownload = useCallback(() => {
-    // 화면에 보이는 페이지가 아니라 "필터 적용된 전체"를 내보낸다 — 실무 대사 작업 단위
-    downloadCsv(filteredRows, role);
-  }, [filteredRows, role]);
+  if (isError) {
+    return (
+      <section className="rounded-xl bg-card p-8 text-center text-sm text-muted-foreground ring-1 ring-foreground/10">
+        데이터 조회 중 오류가 발생했습니다: {error.message}
+        {error.message.includes("42703") && (
+          <p className="mt-2">
+            → <code className="rounded bg-muted px-1 py-0.5 text-xs">supabase/02-server-paging.sql</code>
+            을 SQL Editor에서 실행해 주세요.
+          </p>
+        )}
+      </section>
+    );
+  }
 
   return (
-    <section className="rounded-xl border border-zinc-200 bg-white shadow-sm">
-      {/* ---------- 필터 바 ---------- */}
-      <div className="flex flex-wrap items-end gap-3 border-b border-zinc-200 p-4">
-        <label className="flex flex-col gap-1 text-xs font-medium text-zinc-500">
-          거래 기간
+    <section className="rounded-xl bg-card ring-1 ring-foreground/10">
+      {/* ---------- 필터 바 (반응형: 모바일 2열 그리드 → 데스크톱 인라인) ---------- */}
+      <div className="grid grid-cols-2 items-end gap-3 border-b p-4 sm:flex sm:flex-wrap">
+        <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-1">
+          <Label className="text-xs text-muted-foreground">거래 기간</Label>
           <div className="flex items-center gap-1.5">
-            <input
+            <Input
               type="date"
-              value={filters.dateFrom}
-              onChange={(e) => updateFilter("dateFrom", e.target.value)}
-              className={SELECT_CLASS}
+              value={params.dateFrom}
+              onChange={(e) => updateFilter({ dateFrom: e.target.value })}
               aria-label="시작일"
+              className="h-8"
             />
-            <span className="text-zinc-400">~</span>
-            <input
+            <span className="text-muted-foreground">~</span>
+            <Input
               type="date"
-              value={filters.dateTo}
-              onChange={(e) => updateFilter("dateTo", e.target.value)}
-              className={SELECT_CLASS}
+              value={params.dateTo}
+              onChange={(e) => updateFilter({ dateTo: e.target.value })}
               aria-label="종료일"
+              className="h-8"
             />
           </div>
-        </label>
+        </div>
 
-        <label className="flex flex-col gap-1 text-xs font-medium text-zinc-500">
-          대사 상태
-          <select
-            value={filters.status}
-            onChange={(e) => updateFilter("status", e.target.value as Filters["status"])}
-            className={SELECT_CLASS}
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs text-muted-foreground">대사 상태</Label>
+          <Select
+            value={params.status || ALL}
+            onValueChange={(v) =>
+              updateFilter({ status: v === ALL ? "" : (v as ReconPageParams["status"]) })
+            }
           >
-            <option value="ALL">전체</option>
-            <option value="MATCH">정상</option>
-            <option value="MISMATCH">불일치</option>
-            <option value="DUPLICATED">중복</option>
-            <option value="MISSING">누락</option>
-          </select>
-        </label>
+            <SelectTrigger size="sm" className={FILTER_TRIGGER_CLASS}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>전체</SelectItem>
+              {RECON_STATUSES.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {STATUS_META[status].label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-        <label className="flex flex-col gap-1 text-xs font-medium text-zinc-500">
-          정산 상태
-          <select
-            value={filters.settlement}
-            onChange={(e) => updateFilter("settlement", e.target.value as Filters["settlement"])}
-            className={SELECT_CLASS}
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs text-muted-foreground">정산 상태</Label>
+          <Select
+            value={params.settlement || ALL}
+            onValueChange={(v) =>
+              updateFilter({ settlement: v === ALL ? "" : (v as ReconPageParams["settlement"]) })
+            }
           >
-            <option value="ALL">전체</option>
-            {Object.entries(SETTLEMENT_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
-        </label>
+            <SelectTrigger size="sm" className={FILTER_TRIGGER_CLASS}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>전체</SelectItem>
+              {Object.entries(SETTLEMENT_LABELS).map(([value, label]) => (
+                <SelectItem key={value} value={value}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-        <label className="flex flex-col gap-1 text-xs font-medium text-zinc-500">
-          시스템 비교
-          <select
-            value={filters.scope}
-            onChange={(e) => updateFilter("scope", e.target.value as ComparisonScope)}
-            className={SELECT_CLASS}
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs text-muted-foreground">채널</Label>
+          <Select
+            value={params.channel || ALL}
+            onValueChange={(v) => updateFilter({ channel: v === ALL ? "" : v })}
           >
-            <option value="ALL">전체</option>
-            <option value="OMS_WMS">OMS ↔ WMS (출고 검증)</option>
-            <option value="OMS_PG">OMS ↔ PG (정산 검증)</option>
-          </select>
-        </label>
+            <SelectTrigger size="sm" className={FILTER_TRIGGER_CLASS}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>전체</SelectItem>
+              {channels.map((channel) => (
+                <SelectItem key={channel} value={channel}>{channel}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-        <label className="flex flex-col gap-1 text-xs font-medium text-zinc-500">
-          주문번호 검색
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs text-muted-foreground">시스템 비교</Label>
+          <Select
+            value={params.scope || ALL}
+            onValueChange={(v) =>
+              updateFilter({ scope: v === ALL ? "" : (v as ComparisonScope) })
+            }
+          >
+            <SelectTrigger size="sm" className={FILTER_TRIGGER_CLASS}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>전체</SelectItem>
+              <SelectItem value="OMS_WMS">OMS ↔ WMS (출고 검증)</SelectItem>
+              <SelectItem value="OMS_PG">OMS ↔ PG (정산 검증)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs text-muted-foreground">주문번호 검색</Label>
           <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" aria-hidden />
-            <input
+            <Search
+              className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
               type="search"
               placeholder="ORD-..."
-              value={filters.keyword}
-              onChange={(e) => updateFilter("keyword", e.target.value)}
-              className={cn(SELECT_CLASS, "w-44 pl-8")}
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              className="h-8 w-full pl-8 sm:w-40"
             />
           </div>
-        </label>
+        </div>
 
-        <div className="ml-auto">
-          <Button variant="outline" size="sm" onClick={handleDownload}>
-            <Download className="h-3.5 w-3.5" aria-hidden />
+        <div className="col-span-2 sm:col-span-1 sm:ml-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full sm:w-auto"
+            onClick={handleDownload}
+            disabled={isExporting || total === 0}
+          >
+            {isExporting ? <Loader2 className="animate-spin" aria-hidden /> : <Download aria-hidden />}
             엑셀 다운로드
           </Button>
         </div>
       </div>
 
-      {/* ---------- 테이블 ---------- */}
+      {/* ---------- 테이블 (모바일: 가로 스크롤) ---------- */}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-240 border-collapse text-left">
-          <thead>
-            <tr className="border-b border-zinc-200 bg-zinc-50 text-xs font-semibold text-zinc-500">
-              <th className="px-3 py-2.5 font-semibold">주문번호</th>
-              <th className="px-3 py-2.5 font-semibold">채널</th>
-              <th className="px-3 py-2.5 font-semibold">거래일자</th>
-              <th className="px-3 py-2.5 text-right font-semibold">OMS 주문금액</th>
-              <th className="px-3 py-2.5 text-right font-semibold">WMS 출고금액</th>
-              <th className="px-3 py-2.5 text-right font-semibold">PG 정산금액</th>
-              <th className="px-3 py-2.5 text-right font-semibold">차액</th>
-              <th className="px-3 py-2.5 font-semibold">정산상태</th>
-              <th className="px-3 py-2.5 font-semibold">대사결과</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pagedRows.map((row) => (
-              <ReconRowItem key={row.id} row={row} role={role} />
+        {/* 페이지 전환 중에는 이전 데이터를 흐리게 유지해 깜빡임을 없앤다 */}
+        <Table
+          className={cn(
+            "min-w-240 transition-opacity",
+            isPlaceholderData && isFetching && "opacity-50",
+          )}
+        >
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id} className="bg-muted/50 hover:bg-muted/50">
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id} className="whitespace-nowrap text-xs">
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(header.column.columnDef.header, header.getContext())}
+                  </TableHead>
+                ))}
+              </TableRow>
             ))}
-            {pagedRows.length === 0 && (
-              <tr>
-                <td colSpan={9} className="px-3 py-12 text-center text-sm text-zinc-400">
+          </TableHeader>
+          <TableBody>
+            {isPending ? (
+              // 최초 로딩 스켈레톤 — 행 높이를 실제와 맞춰 CLS 방지
+              Array.from({ length: params.pageSize }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell colSpan={reconColumns.length} className="py-2.5">
+                    <Skeleton className="h-6 w-full" />
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : rows.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={reconColumns.length}
+                  className="h-28 text-center text-sm text-muted-foreground"
+                >
                   조건에 해당하는 대사 데이터가 없습니다.
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
+            ) : (
+              table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id} className={cn(rowHighlightClass(row))}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id} className="whitespace-nowrap py-2.5">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       {/* ---------- 페이지네이션 ---------- */}
-      <div className="flex items-center justify-between border-t border-zinc-200 px-4 py-3">
-        <p className="text-xs text-zinc-500">
-          총 <span className="font-semibold text-zinc-900">{num.format(filteredRows.length)}</span>건
-          {filteredRows.length !== rows.length && (
-            <span> (전체 {num.format(rows.length)}건 중 필터 적용)</span>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
+        <p className="text-xs text-muted-foreground">
+          총 <span className="font-semibold text-foreground">{num.format(total)}</span>건
+          {isFetching && !isPending && (
+            <Loader2 className="ml-1.5 inline size-3 animate-spin align-[-2px]" aria-label="불러오는 중" />
           )}
         </p>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage <= 1}
-            aria-label="이전 페이지"
-          >
-            <ChevronLeft className="h-4 w-4" aria-hidden />
-          </Button>
-          <span className="text-xs tabular-nums text-zinc-600">
-            {currentPage} / {pageCount}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-            disabled={currentPage >= pageCount}
-            aria-label="다음 페이지"
-          >
-            <ChevronRight className="h-4 w-4" aria-hidden />
-          </Button>
+
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <Label className="text-xs text-muted-foreground">표시 행</Label>
+            <Select
+              value={String(params.pageSize)}
+              onValueChange={(v) => table.setPageSize(Number(v))}
+            >
+              <SelectTrigger size="sm" className="w-17">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[10, 20, 50, 100].map((size) => (
+                  <SelectItem key={size} value={String(size)}>{size}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon-sm"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+              aria-label="이전 페이지"
+            >
+              <ChevronLeft aria-hidden />
+            </Button>
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {params.pageIndex + 1} / {pageCount}
+            </span>
+            <Button
+              variant="outline"
+              size="icon-sm"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+              aria-label="다음 페이지"
+            >
+              <ChevronRight aria-hidden />
+            </Button>
+          </div>
         </div>
       </div>
     </section>

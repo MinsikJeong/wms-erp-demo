@@ -1,8 +1,20 @@
-import { CircleUser } from "lucide-react";
+"use client";
+
+import { CircleUser, Menu, Scale } from "lucide-react";
+import { useState } from "react";
+import { NavLinks } from "@/components/layout/nav-links";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import type { SessionUser, UserRole } from "@/lib/types";
 
-/** 권한별 뱃지 색 — 운영자가 자신의 권한을 항상 인지하도록 헤더에 상시 노출 */
+/** 권한별 뱃지 — 운영자가 자신의 권한을 항상 인지하도록 헤더에 상시 노출 */
 const ROLE_BADGE: Record<UserRole, { label: string; variant: "default" | "warning" | "outline" }> = {
   ADMIN: { label: "관리자", variant: "default" },
   OPERATOR: { label: "운영자", variant: "warning" },
@@ -10,25 +22,51 @@ const ROLE_BADGE: Record<UserRole, { label: string; variant: "default" | "warnin
 };
 
 /**
- * 인트라넷 상단 헤더 (서버 컴포넌트).
- * 인터랙션이 없으므로 서버에서 렌더링해 번들 크기를 줄인다.
+ * 인트라넷 상단 헤더 (클라이언트 컴포넌트).
+ * 모바일(<lg)에서는 햄버거 버튼으로 Sheet 내비게이션을 연다.
+ * 링크 클릭 시 Sheet가 닫히도록 open 상태를 제어형으로 관리한다.
  */
 export function Header({ user }: { user: SessionUser }) {
+  const [navOpen, setNavOpen] = useState(false);
   const roleBadge = ROLE_BADGE[user.role];
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-zinc-200 bg-white px-6">
-      <p className="text-sm text-zinc-500">
-        커머스 · 물류 · 재무 통합 인트라넷
-      </p>
+    <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b bg-background px-4 md:px-6">
+      <div className="flex items-center gap-2">
+        {/* 모바일 내비게이션 (lg 미만) */}
+        <Sheet open={navOpen} onOpenChange={setNavOpen}>
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="icon" className="lg:hidden" aria-label="메뉴 열기">
+              <Menu aria-hidden />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-64 p-0">
+            <SheetHeader className="border-b px-5 py-4">
+              <SheetTitle className="flex items-center gap-2 text-sm">
+                <Scale className="size-5" aria-hidden />
+                NewSelect FIS
+              </SheetTitle>
+            </SheetHeader>
+            <NavLinks role={user.role} onNavigate={() => setNavOpen(false)} />
+          </SheetContent>
+        </Sheet>
+
+        {/* 모바일에서는 브랜드, 데스크톱에서는 설명 문구 */}
+        <span className="text-sm font-semibold tracking-tight lg:hidden">
+          NewSelect FIS
+        </span>
+        <p className="hidden text-sm text-muted-foreground lg:block">
+          커머스 · 물류 · 재무 통합 인트라넷
+        </p>
+      </div>
 
       <div className="flex items-center gap-3">
         <Badge variant={roleBadge.variant}>{roleBadge.label}</Badge>
         <div className="flex items-center gap-2">
-          <CircleUser className="h-6 w-6 text-zinc-400" aria-hidden />
-          <div className="leading-tight">
-            <p className="text-sm font-medium text-zinc-900">{user.name}</p>
-            <p className="text-xs text-zinc-500">{user.department}</p>
+          <CircleUser className="size-6 text-muted-foreground" aria-hidden />
+          <div className="hidden leading-tight sm:block">
+            <p className="text-sm font-medium text-foreground">{user.name}</p>
+            <p className="text-xs text-muted-foreground">{user.department}</p>
           </div>
         </div>
       </div>

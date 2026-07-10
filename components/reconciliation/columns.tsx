@@ -1,6 +1,6 @@
 "use client";
 
-import type { ColumnDef, FilterFn, Row } from "@tanstack/react-table";
+import type { ColumnDef, Row } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,11 +10,11 @@ import type { ReconciliationRow, SettlementStatus, UserRole } from "@/lib/types"
 import { cn, krw } from "@/lib/utils";
 
 /**
- * TanStack Table 컬럼 정의.
+ * TanStack Table 컬럼 정의 (서버 사이드 페이지네이션 모드).
  *
+ * - 필터링/정렬/페이지네이션은 모두 서버(Supabase)로 push-down 되므로
+ *   여기에는 표현(셀 렌더링)과 정렬 토글 UI만 남긴다.
  * - 권한(role)은 table.options.meta로 주입받아 셀 단위 마스킹에 사용한다.
- * - 커스텀 filterFn(날짜 범위, 시스템 비교)은 여기 정의해 DataTable의
- *   filterFns 등록과 컬럼이 한 파일에서 관리되게 한다.
  */
 
 /** table.options.meta 타입 확장 — 컬럼 셀에서 권한 정보에 접근 */
@@ -31,47 +31,6 @@ export const SETTLEMENT_LABELS: Record<SettlementStatus, string> = {
   PAID: "지급완료",
   HOLD: "보류",
 };
-
-/** 시스템별 비교 관점 */
-export type ComparisonScope = "OMS_WMS" | "OMS_PG";
-
-/** 이 행이 특정 두 시스템 간 이슈와 관련 있는지 판정 (대조 수식) */
-export function rowScopes(row: ReconciliationRow): ComparisonScope[] {
-  const scopes: ComparisonScope[] = [];
-  // 출고 검증: 주문↔출고 간 누락 또는 수량/금액 상이
-  if (
-    !row.oms || !row.wms ||
-    row.oms.quantity !== row.wms.quantity ||
-    row.oms.amount !== row.wms.amount
-  ) {
-    scopes.push("OMS_WMS");
-  }
-  // 정산 검증: 주문↔PG 정산 간 누락 또는 금액 상이
-  if (!row.oms || !row.pg || row.oms.amount !== row.pg.amount) {
-    scopes.push("OMS_PG");
-  }
-  return scopes;
-}
-
-/** 날짜 범위 filterFn — filterValue: [from, to] (YYYY-MM-DD, 빈 문자열 허용) */
-const dateRangeFilter: FilterFn<ReconciliationRow> = (
-  row,
-  columnId,
-  filterValue: [string, string],
-) => {
-  const value = row.getValue<string>(columnId);
-  const [from, to] = filterValue;
-  if (from && value < from) return false;
-  if (to && value > to) return false;
-  return true;
-};
-
-/** 시스템 비교 filterFn — 해당 관점의 이슈가 있는 행만 통과 */
-const scopeFilter: FilterFn<ReconciliationRow> = (
-  row,
-  columnId,
-  filterValue: ComparisonScope,
-) => row.getValue<ComparisonScope[]>(columnId).includes(filterValue);
 
 /** 정렬 토글 헤더 버튼 — 현재 정렬 방향을 아이콘으로 표시 */
 function SortableHeader({
@@ -117,6 +76,7 @@ function AmountCell({
 
 export const reconColumns: ColumnDef<ReconciliationRow>[] = [
   {
+    // id는 lib/recon.ts의 ReconSortKey와 일치해야 서버 정렬로 매핑된다
     accessorKey: "orderNo",
     header: ({ column }) => <SortableHeader label="주문번호" column={column} />,
     cell: ({ getValue }) => (
@@ -126,18 +86,18 @@ export const reconColumns: ColumnDef<ReconciliationRow>[] = [
   {
     accessorKey: "channel",
     header: "채널",
-    filterFn: "equals",
+    enableSorting: false,
   },
   {
     accessorKey: "transactionDate",
     header: ({ column }) => <SortableHeader label="거래일자" column={column} />,
     cell: ({ getValue }) => <span className="tabular-nums">{getValue<string>()}</span>,
-    filterFn: dateRangeFilter,
   },
   {
     id: "omsAmount",
     accessorFn: (row) => row.oms?.amount ?? null,
     header: () => <div className="text-right">OMS 주문금액</div>,
+    enableSorting: false,
     cell: ({ getValue, table }) => (
       <div className="text-right">
         <AmountCell amount={getValue<number | null>()} role={table.options.meta!.role} />
@@ -148,6 +108,7 @@ export const reconColumns: ColumnDef<ReconciliationRow>[] = [
     id: "wmsAmount",
     accessorFn: (row) => row.wms?.amount ?? null,
     header: () => <div className="text-right">WMS 출고금액</div>,
+    enableSorting: false,
     cell: ({ getValue, table }) => (
       <div className="text-right">
         <AmountCell amount={getValue<number | null>()} role={table.options.meta!.role} />
@@ -158,6 +119,7 @@ export const reconColumns: ColumnDef<ReconciliationRow>[] = [
     id: "pgAmount",
     accessorFn: (row) => row.pg?.amount ?? null,
     header: () => <div className="text-right">PG 정산금액</div>,
+    enableSorting: false,
     cell: ({ getValue, table }) => (
       <div className="text-right">
         <AmountCell amount={getValue<number | null>()} role={table.options.meta!.role} />
@@ -171,8 +133,6 @@ export const reconColumns: ColumnDef<ReconciliationRow>[] = [
         <SortableHeader label="차액" column={column} align="right" />
       </div>
     ),
-    // 누락(null)은 정렬 시 항상 뒤로 보낸다
-    sortUndefined: "last",
     cell: ({ getValue, table }) => {
       const diff = getValue<number | null>();
       const hasDiff = diff != null && diff !== 0;
@@ -191,7 +151,7 @@ export const reconColumns: ColumnDef<ReconciliationRow>[] = [
   {
     accessorKey: "settlementStatus",
     header: "정산상태",
-    filterFn: "equals",
+    enableSorting: false,
     cell: ({ getValue }) => {
       const value = getValue<SettlementStatus>();
       return (
@@ -204,17 +164,10 @@ export const reconColumns: ColumnDef<ReconciliationRow>[] = [
   {
     accessorKey: "status",
     header: "대사결과",
-    filterFn: "equals",
+    enableSorting: false,
     cell: ({ row }) => (
       <StatusBadge status={row.original.status} reason={row.original.statusReason} />
     ),
-  },
-  {
-    // 화면에 표시되지 않는 필터 전용 가상 컬럼 — 시스템 비교 관점 배열
-    id: "scopes",
-    accessorFn: (row) => rowScopes(row),
-    filterFn: scopeFilter,
-    enableHiding: true,
   },
 ];
 

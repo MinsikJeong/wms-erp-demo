@@ -13,13 +13,13 @@ export default function ReconciliationLoading() {
         <Skeleton className="h-4 w-96" />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 xl:grid-cols-5">
         {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="h-32 rounded-xl" />
+          <Skeleton key={i} className="h-28 rounded-xl" />
         ))}
       </div>
 
-      <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-4">
+      <div className="space-y-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
         <div className="flex gap-3">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-9 w-40" />

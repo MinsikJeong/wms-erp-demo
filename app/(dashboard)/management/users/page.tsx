@@ -1,6 +1,14 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { getCurrentUser } from "@/lib/auth";
 import { canManageUsers } from "@/lib/rbac";
 import type { UserRole } from "@/lib/types";
@@ -37,37 +45,41 @@ export default async function UsersManagementPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
+        <h1 className="text-lg font-semibold tracking-tight text-foreground md:text-xl">
           사용자/권한 관리
         </h1>
-        <p className="mt-1 text-sm text-zinc-500">
+        <p className="mt-1 text-sm text-muted-foreground">
           인트라넷 구성원의 권한 등급(ADMIN · OPERATOR · VIEWER)을 관리합니다.
         </p>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-zinc-200 bg-zinc-50 text-xs font-semibold text-zinc-500">
-              <th className="px-4 py-2.5 font-semibold">이름</th>
-              <th className="px-4 py-2.5 font-semibold">이메일</th>
-              <th className="px-4 py-2.5 font-semibold">권한</th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className="overflow-x-auto rounded-xl bg-card ring-1 ring-foreground/10">
+        <Table className="min-w-120">
+          <TableHeader>
+            <TableRow className="bg-muted/50 hover:bg-muted/50">
+              <TableHead className="text-xs">이름</TableHead>
+              <TableHead className="text-xs">이메일</TableHead>
+              <TableHead className="text-xs">권한</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {MEMBERS.map((member) => (
-              <tr key={member.email} className="border-b border-zinc-100 text-zinc-700">
-                <td className="px-4 py-2.5 font-medium text-zinc-900">{member.name}</td>
-                <td className="px-4 py-2.5">{member.email}</td>
-                <td className="px-4 py-2.5">
+              <TableRow key={member.email}>
+                <TableCell className="font-medium text-foreground">
+                  {member.name}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {member.email}
+                </TableCell>
+                <TableCell>
                   <Badge variant={member.role === "ADMIN" ? "default" : "outline"}>
                     {ROLE_LABELS[member.role]}
                   </Badge>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

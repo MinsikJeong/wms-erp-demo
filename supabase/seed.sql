@@ -31,12 +31,28 @@ create table public.reconciliations (
   status_reason text,
   amount_diff bigint,
   settlement_status text not null check (settlement_status in ('PENDING','CONFIRMED','PAID','HOLD')),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- 시스템 비교 필터용 생성 컬럼 (PostgREST는 컬럼 간 비교를 지원하지 않음)
+  scope_oms_wms boolean generated always as (
+    oms_document_no is null
+    or wms_document_no is null
+    or oms_quantity is distinct from wms_quantity
+    or oms_amount is distinct from wms_amount
+  ) stored,
+  scope_oms_pg boolean generated always as (
+    oms_document_no is null
+    or pg_document_no is null
+    or oms_amount is distinct from pg_amount
+  ) stored
 );
 
 -- 조회 패턴(기간 필터 + 상태 필터)에 맞춘 인덱스
 create index reconciliations_tx_date_idx on public.reconciliations (transaction_date desc);
 create index reconciliations_status_idx on public.reconciliations (status);
+create index reconciliations_scope_oms_wms_idx
+  on public.reconciliations (transaction_date desc) where scope_oms_wms;
+create index reconciliations_scope_oms_pg_idx
+  on public.reconciliations (transaction_date desc) where scope_oms_pg;
 
 -- RLS: 데모는 익명(publishable key) 읽기만 허용, 쓰기는 차단
 alter table public.reconciliations enable row level security;
@@ -151,6 +167,26 @@ select
     else 'HOLD'
   end
 from derived;
+
+-- ------------------------------------------------------------
+-- Metric Card 집계 + 채널 목록 RPC (서버 사이드 페이지네이션용)
+-- ------------------------------------------------------------
+create or replace function public.recon_summary()
+returns json
+language sql
+stable
+as $$
+  select json_build_object(
+    'totalCount',      count(*),
+    'matchCount',      count(*) filter (where status = 'MATCH'),
+    'mismatchCount',   count(*) filter (where status = 'MISMATCH'),
+    'duplicatedCount', count(*) filter (where status = 'DUPLICATED'),
+    'missingCount',    count(*) filter (where status = 'MISSING'),
+    'totalDiffAmount', coalesce(sum(abs(amount_diff)) filter (where status <> 'MATCH'), 0),
+    'channels',        coalesce((select json_agg(distinct channel) from public.reconciliations), '[]'::json)
+  )
+  from public.reconciliations;
+$$;
 
 -- 확인용
 select status, count(*) from public.reconciliations group by status order by status;

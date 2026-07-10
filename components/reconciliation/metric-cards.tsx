@@ -11,12 +11,12 @@ import type { ReconciliationSummary, UserRole } from "@/lib/types";
 import { cn, krw, num } from "@/lib/utils";
 
 /**
- * 대사 요약 Metric Cards (서버 컴포넌트).
+ * 대사 요약 Metric Cards (프레젠테이션 컴포넌트 — RSC/클라이언트 겸용).
  *
  * 운영자가 화면 진입 즉시 "오늘 처리해야 할 리스크 규모"를 파악하는 영역.
- * 집계는 서버(summarize)에서 끝난 값을 받아 표시만 담당한다.
  * 위험 지표(불일치/누락)는 값이 0보다 클 때만 포인트 컬러로 강조해
  * 무채색 테마 안에서 시선이 자연스럽게 위험으로 향하게 한다.
+ * 반응형: 모바일 2열 → 태블릿 3열 → 데스크톱 5열.
  */
 export function MetricCards({
   summary,
@@ -32,7 +32,7 @@ export function MetricCards({
       caption: `정상 ${num.format(summary.matchCount)}건 포함`,
       icon: BadgeCheck,
       accent: false,
-      iconClass: "text-zinc-400",
+      iconClass: "text-muted-foreground",
     },
     {
       title: "금액 불일치",
@@ -70,29 +70,34 @@ export function MetricCards({
   ];
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 xl:grid-cols-5">
       {metrics.map((metric) => (
         <Card
           key={metric.title}
-          className={cn(metric.accent && "border-red-200 bg-red-50/40")}
+          size="sm"
+          className={cn(
+            metric.accent &&
+              "bg-red-50/40 ring-red-200 dark:bg-red-950/20 dark:ring-red-900",
+          )}
         >
-          <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>{metric.title}</CardTitle>
-            <metric.icon
-              className={cn("h-4 w-4", metric.iconClass)}
-              aria-hidden
-            />
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between text-xs font-medium text-muted-foreground">
+              {metric.title}
+              <metric.icon className={cn("size-4", metric.iconClass)} aria-hidden />
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <p
               className={cn(
-                "text-2xl font-semibold tracking-tight tabular-nums",
-                metric.accent ? "text-red-700" : "text-zinc-900",
+                "text-xl font-semibold tracking-tight tabular-nums md:text-2xl",
+                metric.accent ? "text-red-700 dark:text-red-400" : "text-foreground",
               )}
             >
               {metric.value}
             </p>
-            <p className="mt-1 text-xs text-zinc-500">{metric.caption}</p>
+            <p className="mt-1 truncate text-xs text-muted-foreground">
+              {metric.caption}
+            </p>
           </CardContent>
         </Card>
       ))}

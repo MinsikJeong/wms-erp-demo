@@ -1,3 +1,5 @@
+"use client";
+
 import {
   AlertTriangle,
   CheckCircle2,
@@ -5,6 +7,11 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { ReconStatus } from "@/lib/types";
 
 /**
@@ -34,25 +41,25 @@ export const STATUS_META: Record<
     label: "불일치",
     variant: "destructive",
     icon: AlertTriangle,
-    rowClass: "bg-red-50 hover:bg-red-100/70",
+    rowClass: "bg-red-50 hover:bg-red-100/70 dark:bg-red-950/30 dark:hover:bg-red-950/50",
   },
   DUPLICATED: {
     label: "중복",
     variant: "warning",
     icon: Copy,
-    rowClass: "bg-amber-50 hover:bg-amber-100/70",
+    rowClass: "bg-amber-50 hover:bg-amber-100/70 dark:bg-amber-950/30 dark:hover:bg-amber-950/50",
   },
   MISSING: {
     label: "누락",
     variant: "warning",
     icon: HelpCircle,
-    rowClass: "bg-amber-50 hover:bg-amber-100/70",
+    rowClass: "bg-amber-50 hover:bg-amber-100/70 dark:bg-amber-950/30 dark:hover:bg-amber-950/50",
   },
 };
 
 /**
  * 대사 상태 뱃지.
- * `reason`이 있으면 네이티브 툴팁(title)으로 구체적 사유를 노출한다.
+ * `reason`이 있으면 Tooltip으로 구체적 불일치 사유를 노출한다.
  * 예: "OMS 주문금액과 PG 정산금액 5,000원 불일치"
  */
 export function StatusBadge({
@@ -65,14 +72,21 @@ export function StatusBadge({
   const meta = STATUS_META[status];
   const Icon = meta.icon;
 
-  return (
-    <Badge
-      variant={meta.variant}
-      title={reason ?? undefined}
-      className={reason ? "cursor-help" : undefined}
-    >
-      <Icon className="h-3 w-3" aria-hidden />
+  const badge = (
+    <Badge variant={meta.variant} className={reason ? "cursor-help" : undefined}>
+      <Icon aria-hidden />
       {meta.label}
     </Badge>
+  );
+
+  if (!reason) return badge;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{badge}</TooltipTrigger>
+      <TooltipContent side="left" className="max-w-72 text-pretty">
+        {reason}
+      </TooltipContent>
+    </Tooltip>
   );
 }

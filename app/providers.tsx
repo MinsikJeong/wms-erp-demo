@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
+import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 /**
@@ -28,7 +29,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
+      <TooltipProvider delayDuration={200}>
+        {children}
+        {/* 처리/전표 등 Mutation 결과 피드백용 전역 토스트 */}
+        <Toaster position="top-right" richColors />
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }

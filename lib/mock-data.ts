@@ -177,10 +177,10 @@ const MOCK_ROWS: ReconciliationRow[] = [
 
 /**
  * 대사 결과 조회.
- * 네트워크 왕복을 흉내 내는 지연을 포함해 loading.tsx 스켈레톤이 실제로 노출된다.
+ * 실제 API 연동 시 이 함수만 fetch 호출로 교체한다. 응답이 느려지는 경우에는
+ * 같은 세그먼트의 loading.tsx 스켈레톤이 자동으로 노출된다.
  */
 export async function fetchReconciliationRows(): Promise<ReconciliationRow[]> {
-  await new Promise((resolve) => setTimeout(resolve, 400));
   return MOCK_ROWS;
 }
 

@@ -1,14 +1,13 @@
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils"
 
-/** 로딩 스켈레톤 — loading.tsx 및 Suspense fallback에서 사용 */
-export function Skeleton({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      className={cn("animate-pulse rounded-md bg-zinc-200", className)}
+      data-slot="skeleton"
+      className={cn("animate-pulse rounded-md bg-muted", className)}
       {...props}
     />
-  );
+  )
 }
+
+export { Skeleton }

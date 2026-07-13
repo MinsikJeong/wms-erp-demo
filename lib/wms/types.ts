@@ -124,6 +124,22 @@ export interface WarehouseInventoryRow {
   updatedAt: string;
 }
 
+/** 대시보드 히어로 차트용 일자별 입·출고 물동량 (예정 수량 합계) */
+export interface DailyFlow {
+  /** YYYY-MM-DD */
+  date: string;
+  inbound: number;
+  outbound: number;
+}
+
+/** 대시보드 카테고리 구성 차트용 집계 (v_inventory_by_item을 카테고리로 접음) */
+export interface CategoryShare {
+  category: string;
+  itemKinds: number;
+  totalQty: number;
+  totalValue: number;
+}
+
 /** 대시보드 요약 (wms_summary RPC) */
 export interface WmsSummary {
   todayInbound: number;

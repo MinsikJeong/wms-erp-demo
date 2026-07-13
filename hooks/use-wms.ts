@@ -21,6 +21,7 @@ import {
   fetchWmsSummary,
   fetchZoneInventory,
   processOrder,
+  searchItems,
   wmsKeys,
   type CreateOrderInput,
   type InventoryParams,
@@ -110,7 +111,22 @@ export function useZoneInventory(warehouseId: string) {
   });
 }
 
-/** 품목 마스터 — 등록 폼 품목 선택용 */
+/**
+ * 품목 서버 검색 — 등록 폼 콤보박스용.
+ * 콤보박스가 열려 있을 때만 조회하고(enabled 게이트), 검색어별로 캐시된다.
+ * keepPreviousData로 타이핑 중 목록 깜빡임을 없앤다.
+ */
+export function useItemSearch(keyword: string, enabled: boolean) {
+  return useQuery({
+    queryKey: wmsKeys.itemSearch(keyword),
+    queryFn: () => searchItems(supabase(), keyword),
+    enabled,
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
+  });
+}
+
+/** 품목 마스터 — 카테고리 필터 옵션 유도용 */
 export function useItems() {
   return useQuery({
     queryKey: wmsKeys.items,

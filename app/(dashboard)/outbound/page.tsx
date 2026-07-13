@@ -6,7 +6,7 @@ import { createOrdersParams, fetchOrdersPage, fetchWarehouses, wmsKeys } from "@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
-  title: "출고예정현황 | ERP",
+  title: "출고예정현황 | StockFlow",
 };
 
 /** 3-2. 출고예정현황 — 첫 페이지 서버 프리페치 (입고예정현황과 동일 패턴) */

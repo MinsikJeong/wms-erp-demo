@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { canMutate } from "@/lib/rbac";
 
 export const metadata: Metadata = {
-  title: "ERP 전표생성(출고) | ERP",
+  title: "ERP 전표생성(출고) | StockFlow",
 };
 
 /** 3-4. ERP 전표생성(출고=매출) — OPERATOR 이상 */

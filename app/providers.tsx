@@ -31,8 +31,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider delayDuration={200}>
         {children}
-        {/* 처리/전표 등 Mutation 결과 피드백용 전역 토스트 */}
-        <Toaster position="top-right" richColors />
+        {/* 처리/전표 등 Mutation 결과 피드백용 전역 토스트.
+            상단은 헤더의 권한 스위처·프로필을 가리므로 하단 우측에 띄운다 */}
+        <Toaster position="bottom-right" richColors />
       </TooltipProvider>
     </QueryClientProvider>
   );

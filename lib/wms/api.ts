@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
+  CategoryShare,
+  DailyFlow,
   Direction,
   InventoryByItemRow,
   Item,
@@ -61,6 +63,7 @@ export const wmsKeys = {
   warehouseStockSummary: ["wms", "warehouse-stock-summary"] as const,
   zoneInventory: (warehouseId: string) => ["wms", "zone-inventory", warehouseId] as const,
   items: ["wms", "items"] as const,
+  itemSearch: (keyword: string) => ["wms", "item-search", keyword] as const,
   summary: ["wms", "summary"] as const,
 };
 
@@ -144,6 +147,44 @@ export async function fetchItems(client: SupabaseClient): Promise<Item[]> {
     unit: i.unit,
     unitPrice: i.unit_price,
   }));
+}
+
+/** 품목 검색 결과 페이지 크기 — 콤보박스는 상위 N건만 보여주고 나머지는 검색 유도 */
+export const ITEM_SEARCH_LIMIT = 20;
+
+/**
+ * 품목 검색 (등록 폼 콤보박스용).
+ * 품목 마스터가 수천 건으로 늘어도 전량 로드하지 않도록 SKU/품목명
+ * ilike 필터를 DB로 push-down 하고 상위 N건 + 전체 건수만 가져온다.
+ * 빈 검색어는 SKU 순 상위 N건(브라우즈 모드)을 반환한다.
+ */
+export async function searchItems(
+  client: SupabaseClient,
+  keyword: string,
+): Promise<PageResult<Item>> {
+  let q = client
+    .from("items")
+    .select("id, sku, name, category, unit, unit_price", { count: "exact" });
+
+  if (keyword.trim()) {
+    const kw = `%${escapeLike(keyword.trim())}%`;
+    q = q.or(`sku.ilike.${kw},name.ilike.${kw}`);
+  }
+
+  const { data, error, count } = await q.order("sku").limit(ITEM_SEARCH_LIMIT);
+  if (error) throwQueryError(error);
+
+  return {
+    rows: data.map((i) => ({
+      id: i.id,
+      sku: i.sku,
+      name: i.name,
+      category: i.category,
+      unit: i.unit,
+      unitPrice: i.unit_price,
+    })),
+    total: count ?? 0,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -474,6 +515,98 @@ export async function fetchWmsSummary(client: SupabaseClient): Promise<WmsSummar
   const { data, error } = await client.rpc("wms_summary");
   if (error) throwQueryError(error);
   return data as WmsSummary;
+}
+
+/* ------------------------------------------------------------------ */
+/* 대시보드 차트 (서버 컴포넌트 전용 — 조회 후 JS에서 집계)               */
+/* ------------------------------------------------------------------ */
+
+/** 로컬(KST) 기준 YYYY-MM-DD — toISOString은 UTC라 날짜가 밀릴 수 있어 직접 조립 */
+function toDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * 최근 N일 일자별 입·출고 물동량 (예정 수량 합계).
+ * 문서 건수는 시드 특성상 입·출고가 매일 동수라 계열이 겹친다 —
+ * 수량 합계가 실제 '물동량'이며 차트에서도 계열이 분리된다.
+ * PostgREST는 GROUP BY를 지원하지 않으므로 기간 필터만 push-down 하고
+ * (데모 데이터 기준 수백 행) 집계는 서버 컴포넌트에서 수행한다.
+ * 문서가 없는 날짜도 0으로 채워 차트 축이 끊기지 않게 한다.
+ */
+export async function fetchDailyFlows(
+  client: SupabaseClient,
+  days = 14,
+): Promise<DailyFlow[]> {
+  const today = new Date();
+  const from = new Date(today);
+  from.setDate(today.getDate() - (days - 1));
+
+  const { data, error } = await client
+    .from("v_wms_orders")
+    .select("expected_date, direction, total_expected_qty")
+    .gte("expected_date", toDateKey(from))
+    .lte("expected_date", toDateKey(today));
+  if (error) throwQueryError(error);
+
+  const byDate = new Map<string, DailyFlow>();
+  for (let i = 0; i < days; i += 1) {
+    const d = new Date(from);
+    d.setDate(from.getDate() + i);
+    const key = toDateKey(d);
+    byDate.set(key, { date: key, inbound: 0, outbound: 0 });
+  }
+  for (const row of data as {
+    expected_date: string;
+    direction: Direction;
+    total_expected_qty: number;
+  }[]) {
+    const bucket = byDate.get(row.expected_date);
+    if (!bucket) continue;
+    if (row.direction === "IN") bucket.inbound += row.total_expected_qty;
+    else bucket.outbound += row.total_expected_qty;
+  }
+  return [...byDate.values()];
+}
+
+/** 카테고리별 재고 구성 — 품목 마스터(소량)를 전량 조회 후 카테고리로 접는다 */
+export async function fetchCategoryShares(client: SupabaseClient): Promise<CategoryShare[]> {
+  const { data, error } = await client
+    .from("v_inventory_by_item")
+    .select("category, total_qty, total_value");
+  if (error) throwQueryError(error);
+
+  const byCategory = new Map<string, CategoryShare>();
+  for (const row of data as { category: string; total_qty: number; total_value: number }[]) {
+    const bucket = byCategory.get(row.category) ?? {
+      category: row.category,
+      itemKinds: 0,
+      totalQty: 0,
+      totalValue: 0,
+    };
+    bucket.itemKinds += 1;
+    bucket.totalQty += row.total_qty;
+    bucket.totalValue += row.total_value;
+    byCategory.set(row.category, bucket);
+  }
+  return [...byCategory.values()].sort((a, b) => b.totalValue - a.totalValue);
+}
+
+/** 최근 등록 문서 — 대시보드 최근 활동 피드용 */
+export async function fetchRecentOrders(
+  client: SupabaseClient,
+  limit = 8,
+): Promise<WmsOrderRow[]> {
+  const { data, error } = await client
+    .from("v_wms_orders")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throwQueryError(error);
+  return (data as WmsOrderDbRow[]).map(toOrderRow);
 }
 
 /* ------------------------------------------------------------------ */

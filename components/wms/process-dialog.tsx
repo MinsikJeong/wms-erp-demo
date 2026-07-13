@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, PackageCheck } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -44,24 +44,24 @@ export function ProcessDialog({
   const { data: lines, isPending } = useOrderLines(order?.id ?? null);
   const processMutation = useProcessOrder();
 
-  // 라인별 확정 수량 (order_item_id → qty 문자열; 입력 중 빈 값 허용)
-  const [quantities, setQuantities] = useState<Record<string, string>>({});
+  // 사용자가 수정한 라인만 저장하고, 기본값(예정수량)은 렌더 시점에 파생한다.
+  // order_item_id는 문서마다 유일하므로 문서 간 값이 섞이지 않는다 —
+  // effect로 초기화하면 캐스케이딩 렌더가 생겨 파생 방식을 쓴다.
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const qtyOf = (lineId: string, expectedQty: number) =>
+    overrides[lineId] ?? String(expectedQty);
 
-  // 다이얼로그가 새 문서로 열릴 때 예정수량으로 초기화
-  useEffect(() => {
-    if (lines) {
-      setQuantities(
-        Object.fromEntries(lines.map((line) => [line.id, String(line.expectedQty)])),
-      );
-    }
-  }, [lines]);
+  const handleClose = () => {
+    setOverrides({});
+    onClose();
+  };
 
   const isIn = order?.direction === "IN";
   const actionLabel = isIn ? "입고 처리" : "출고 처리";
 
   const parsedLines = (lines ?? []).map((line) => ({
     orderItemId: line.id,
-    qty: Number.parseInt(quantities[line.id] ?? "", 10),
+    qty: Number.parseInt(qtyOf(line.id, line.expectedQty), 10),
   }));
   const invalid = parsedLines.some((l) => !Number.isInteger(l.qty) || l.qty < 0);
 
@@ -69,12 +69,12 @@ export function ProcessDialog({
     if (!order || invalid) return;
     processMutation.mutate(
       { orderId: order.id, lines: parsedLines },
-      { onSuccess: onClose },
+      { onSuccess: handleClose },
     );
   };
 
   return (
-    <Dialog open={order !== null} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={order !== null} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -121,9 +121,9 @@ export function ProcessDialog({
                       <Input
                         type="number"
                         min={0}
-                        value={quantities[line.id] ?? ""}
+                        value={qtyOf(line.id, line.expectedQty)}
                         onChange={(e) =>
-                          setQuantities((prev) => ({ ...prev, [line.id]: e.target.value }))
+                          setOverrides((prev) => ({ ...prev, [line.id]: e.target.value }))
                         }
                         className="h-8 text-right tabular-nums"
                         aria-label={`${line.itemName} 확정수량`}
@@ -137,7 +137,7 @@ export function ProcessDialog({
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={processMutation.isPending}>
+          <Button variant="outline" onClick={handleClose} disabled={processMutation.isPending}>
             취소
           </Button>
           <Button

@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { canMutate } from "@/lib/rbac";
 
 export const metadata: Metadata = {
-  title: "출고예정 등록 | ERP",
+  title: "출고예정 등록 | StockFlow",
 };
 
 /** 3-1. 출고예정 등록 — OPERATOR 이상 */

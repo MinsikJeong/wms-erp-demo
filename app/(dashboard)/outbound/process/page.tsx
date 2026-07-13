@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { canMutate } from "@/lib/rbac";
 
 export const metadata: Metadata = {
-  title: "출고처리 | ERP",
+  title: "출고처리 | StockFlow",
 };
 
 /** 3-3. 출고처리 — 재고 차감이 일어나므로 OPERATOR 이상, 재고 부족 시 DB가 롤백 */

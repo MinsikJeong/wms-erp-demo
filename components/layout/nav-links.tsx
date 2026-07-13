@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useOptimistic, useTransition } from "react";
 import {
   Boxes,
   Building2,
@@ -9,6 +10,7 @@ import {
   CalendarPlus,
   ClipboardList,
   LayoutDashboard,
+  Loader2,
   PackageCheck,
   ReceiptText,
   Truck,
@@ -97,6 +99,23 @@ export function NavLinks({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  // 낙관적 활성 경로 — 클릭 즉시 하이라이트를 옮기고, 내비게이션 트랜지션이
+  // 끝나면(실제 pathname 반영) 자동으로 실제 값으로 되돌아간다.
+  const [optimisticPath, setOptimisticPath] = useOptimistic(pathname);
+  const [isPending, startTransition] = useTransition();
+
+  const handleNavigate = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    // 새 탭/수정키 클릭은 브라우저 기본 동작 유지
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    onNavigate?.();
+    if (href === pathname) return;
+    startTransition(() => {
+      setOptimisticPath(href);
+      router.push(href);
+    });
+  };
 
   return (
     <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-5">
@@ -115,23 +134,39 @@ export function NavLinks({
             <ul className="space-y-0.5">
               {visibleItems.map((item) => {
                 // 메뉴 트리에 모든 라우트가 명시돼 있으므로 정확 일치만 활성 처리
-                // (startsWith를 쓰면 /inbound가 /inbound/new에서도 활성화됨)
-                const active = pathname === item.href;
+                // (startsWith를 쓰면 /inbound가 /inbound/new에서도 활성화됨).
+                // 낙관적 경로 기준이라 클릭 즉시 하이라이트가 이동한다.
+                const active = optimisticPath === item.href;
+                const showSpinner = isPending && active;
                 return (
                   <li key={item.href}>
                     <Link
                       href={item.href}
-                      onClick={onNavigate}
+                      onClick={(e) => handleNavigate(e, item.href)}
                       aria-current={active ? "page" : undefined}
                       className={cn(
-                        "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors",
+                        "group relative flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors",
                         active
-                          ? "bg-primary font-medium text-primary-foreground"
+                          ? "bg-primary/10 font-semibold text-primary"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground",
                       )}
                     >
-                      <item.icon className="size-4" aria-hidden />
+                      {/* 활성 메뉴 좌측 인디케이터 바 */}
+                      {active && (
+                        <span
+                          aria-hidden
+                          className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-primary"
+                        />
+                      )}
+                      <item.icon
+                        className={cn("size-4", active ? "text-primary" : "text-muted-foreground/70 group-hover:text-foreground")}
+                        aria-hidden
+                      />
                       {item.label}
+                      {/* 전환 중 표시 — 낙관적으로 이동한 항목에만 */}
+                      {showSpinner && (
+                        <Loader2 className="ml-auto size-3.5 animate-spin text-primary/70" aria-hidden />
+                      )}
                     </Link>
                   </li>
                 );

@@ -26,7 +26,7 @@ function warehouseIcon(code: string): L.DivIcon {
     className: "", // leaflet 기본 스타일 제거
     html: `<div style="
       display:inline-flex;align-items:center;gap:4px;
-      background:oklch(0.205 0 0);color:#fff;
+      background:oklch(0.511 0.222 277);color:#fff;
       padding:3px 8px;border-radius:9999px;
       font-size:11px;font-weight:600;white-space:nowrap;
       box-shadow:0 1px 4px rgba(0,0,0,.35);
@@ -52,7 +52,7 @@ export default function WarehouseMap({
     <MapContainer
       center={KOREA_CENTER}
       zoom={7}
-      scrollWheelZoom={false}
+      scrollWheelZoom
       className="z-0 h-80 w-full rounded-lg"
       attributionControl
     >

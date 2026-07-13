@@ -2,14 +2,17 @@
 
 import type { ColumnDef } from "@tanstack/react-table";
 import { FileCheck2, Loader2, ReceiptText } from "lucide-react";
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ExportButton } from "@/components/wms/export-button";
 import { OrdersTable } from "@/components/wms/orders-table";
 import { PagedTable } from "@/components/wms/paged-table";
 import { FilterBar, FilterField, SearchFilter } from "@/components/wms/filters";
 import { useCreateVoucher, useVouchersPage } from "@/hooks/use-wms";
-import { maskAmount } from "@/lib/rbac";
-import { createVouchersParams, type VouchersParams } from "@/lib/wms/api";
+import { exportFiltered, type ExportColumn } from "@/lib/export";
+import { canViewAmounts, maskAmount } from "@/lib/rbac";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { createVouchersParams, fetchVouchersPage, type VouchersParams } from "@/lib/wms/api";
 import type { Direction, VoucherRow } from "@/lib/wms/types";
 import type { UserRole } from "@/lib/types";
 import { krw, num } from "@/lib/utils";
@@ -128,18 +131,42 @@ function VoucherList({ direction, role }: { direction: Direction; role: UserRole
     createVouchersParams(direction),
   );
   const [keyword, setKeyword] = useState("");
+  // 지연 검색어는 렌더 시점에 파라미터로 합성 (effect + setState 동기화 금지)
   const deferredKeyword = useDeferredValue(keyword);
+  const queryParams = useMemo(
+    () => ({ ...params, keyword: deferredKeyword }),
+    [params, deferredKeyword],
+  );
 
-  useEffect(() => {
-    setParams((prev) =>
-      prev.keyword === deferredKeyword
-        ? prev
-        : { ...prev, keyword: deferredKeyword, pageIndex: 0 },
-    );
-  }, [deferredKeyword]);
+  /** 검색어 변경 시 페이지만 즉시 1페이지로 — 검색어 자체는 지연 값으로 반영 */
+  const handleKeywordChange = (value: string) => {
+    setKeyword(value);
+    setParams((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
+  };
 
-  const query = useVouchersPage(params);
+  const query = useVouchersPage(queryParams);
   const columns = useMemo(() => buildVoucherColumns(role), [role]);
+
+  /** 엑셀 내보내기 — 전표금액은 화면과 동일하게 VIEWER 마스킹 적용 */
+  const handleExport = () => {
+    const showAmounts = canViewAmounts(role);
+    const exportColumns: ExportColumn<VoucherRow>[] = [
+      { header: "전표번호", value: (r) => r.voucherNo },
+      { header: "구분", value: (r) => (r.direction === "IN" ? "매입(입고)" : "매출(출고)") },
+      { header: "원문서번호", value: (r) => r.orderNo },
+      { header: "거래처", value: (r) => r.partner },
+      { header: "창고", value: (r) => r.warehouseName },
+      { header: "품목수", value: (r) => r.lineCount },
+      { header: "전표금액", value: (r) => (showAmounts ? r.totalAmount : "₩ ***,***") },
+      { header: "발행일시", value: (r) => new Date(r.createdAt).toLocaleString("ko-KR") },
+    ];
+    return exportFiltered(
+      (pageIndex, pageSize) =>
+        fetchVouchersPage(getSupabaseBrowserClient(), { ...queryParams, pageIndex, pageSize }),
+      exportColumns,
+      direction === "IN" ? "매입전표목록" : "매출전표목록",
+    );
+  };
 
   if (query.isError) {
     return (
@@ -153,8 +180,10 @@ function VoucherList({ direction, role }: { direction: Direction; role: UserRole
     <section className="rounded-xl bg-card ring-1 ring-foreground/10">
       <FilterBar>
         <FilterField label="전표/문서번호/거래처 검색" className="col-span-2 sm:col-span-1">
-          <SearchFilter value={keyword} onChange={setKeyword} placeholder="VCI-... / IB-..." />
+          <SearchFilter value={keyword} onChange={handleKeywordChange} placeholder="VCI-... / IB-..." />
         </FilterField>
+
+        <ExportButton onExport={handleExport} className="col-span-2 sm:ml-auto" />
       </FilterBar>
       <PagedTable
         columns={columns}

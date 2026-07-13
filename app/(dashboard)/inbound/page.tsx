@@ -6,7 +6,7 @@ import { createOrdersParams, fetchOrdersPage, fetchWarehouses, wmsKeys } from "@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
-  title: "입고예정현황 | ERP",
+  title: "입고예정현황 | StockFlow",
 };
 
 /**

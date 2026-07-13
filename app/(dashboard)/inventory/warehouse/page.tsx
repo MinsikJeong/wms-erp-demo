@@ -6,7 +6,7 @@ import { createWarehouseInventoryParams, fetchWarehouseInventoryPage, fetchWareh
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
-  title: "창고별 재고현황 | ERP",
+  title: "창고별 재고현황 | StockFlow",
 };
 
 /**

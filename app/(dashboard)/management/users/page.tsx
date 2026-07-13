@@ -7,7 +7,7 @@ import { canManageUsers } from "@/lib/rbac";
 import type { UserRole } from "@/lib/types";
 
 export const metadata: Metadata = {
-  title: "사용자/권한 관리 | ERP",
+  title: "사용자/권한 관리 | StockFlow",
 };
 
 /** 데모용 구성원 목록 — 실제로는 사내 계정 디렉터리 API에서 조회 */

@@ -20,9 +20,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useCreateOrder, useItems, useWarehouses } from "@/hooks/use-wms";
+import { ItemCombobox } from "@/components/wms/item-combobox";
+import { useCreateOrder, useWarehouses } from "@/hooks/use-wms";
 import { maskAmount } from "@/lib/rbac";
-import type { Direction } from "@/lib/wms/types";
+import type { Direction, Item } from "@/lib/wms/types";
 import type { UserRole } from "@/lib/types";
 import { krw, num } from "@/lib/utils";
 
@@ -32,17 +33,21 @@ import { krw, num } from "@/lib/utils";
  * 창고·거래처·예정일 + 품목 라인(품목 선택, 수량)을 입력해
  * wms_create_order RPC로 등록한다. 성공 시 현황 화면으로 이동.
  * 검증(수량>0, 라인≥1, 거래처 필수)은 클라이언트와 DB 양쪽에서 수행한다.
+ *
+ * 품목은 서버 검색 콤보박스로 선택한다 — 마스터 전량을 로드하지 않으므로
+ * 단가·요약 계산에 필요한 품목 정보는 선택 시점에 라인에 함께 보관한다.
  */
 
 interface FormLine {
   /** React key용 로컬 id */
   key: number;
-  itemId: string;
+  /** 콤보박스에서 선택된 품목 전체 (단가·요약 계산용, null = 미선택) */
+  item: Item | null;
   qty: string;
 }
 
 let lineKeySeq = 0;
-const newLine = (): FormLine => ({ key: ++lineKeySeq, itemId: "", qty: "" });
+const newLine = (): FormLine => ({ key: ++lineKeySeq, item: null, qty: "" });
 
 export function OrderForm({
   direction,
@@ -53,7 +58,6 @@ export function OrderForm({
 }) {
   const router = useRouter();
   const { data: warehouses } = useWarehouses();
-  const { data: items } = useItems();
   const createMutation = useCreateOrder();
 
   const isIn = direction === "IN";
@@ -68,11 +72,9 @@ export function OrderForm({
   const updateLine = (key: number, patch: Partial<FormLine>) =>
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
 
-  const itemById = new Map((items ?? []).map((i) => [i.id, i]));
-
   const parsedLines = lines
-    .filter((l) => l.itemId)
-    .map((l) => ({ itemId: l.itemId, qty: Number.parseInt(l.qty, 10) }));
+    .filter((l): l is FormLine & { item: Item } => l.item !== null)
+    .map((l) => ({ item: l.item, qty: Number.parseInt(l.qty, 10) }));
   const linesValid =
     parsedLines.length > 0 &&
     parsedLines.every((l) => Number.isInteger(l.qty) && l.qty > 0);
@@ -80,10 +82,10 @@ export function OrderForm({
     warehouseId !== "" && partner.trim() !== "" && expectedDate !== "" && linesValid;
 
   /** 예상 금액 합계 — 참고용 (확정 금액은 처리 수량 기준으로 전표에서 계산) */
-  const estimatedTotal = parsedLines.reduce((sum, l) => {
-    const item = itemById.get(l.itemId);
-    return sum + (item && Number.isInteger(l.qty) ? item.unitPrice * l.qty : 0);
-  }, 0);
+  const estimatedTotal = parsedLines.reduce(
+    (sum, l) => sum + (Number.isInteger(l.qty) ? l.item.unitPrice * l.qty : 0),
+    0,
+  );
 
   const handleSubmit = () => {
     if (!formValid) return;
@@ -94,7 +96,7 @@ export function OrderForm({
         partner,
         expectedDate,
         memo,
-        lines: parsedLines,
+        lines: parsedLines.map((l) => ({ itemId: l.item.id, qty: l.qty })),
       },
       { onSuccess: () => router.push(isIn ? "/inbound" : "/outbound") },
     );
@@ -165,24 +167,13 @@ export function OrderForm({
           <Label>품목 *</Label>
           <div className="space-y-2">
             {lines.map((line) => {
-              const item = itemById.get(line.itemId);
+              const item = line.item;
               return (
                 <div key={line.key} className="flex flex-wrap items-center gap-2">
-                  <Select
-                    value={line.itemId}
-                    onValueChange={(itemId) => updateLine(line.key, { itemId })}
-                  >
-                    <SelectTrigger className="min-w-0 flex-1">
-                      <SelectValue placeholder="품목 선택" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(items ?? []).map((i) => (
-                        <SelectItem key={i.id} value={i.id}>
-                          [{i.sku}] {i.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <ItemCombobox
+                    selected={line.item}
+                    onSelect={(picked) => updateLine(line.key, { item: picked })}
+                  />
                   <Input
                     type="number"
                     min={1}

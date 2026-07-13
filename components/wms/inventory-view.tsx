@@ -1,7 +1,7 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   FilterBar,
@@ -9,12 +9,16 @@ import {
   SearchFilter,
   SelectFilter,
 } from "@/components/wms/filters";
+import { ExportButton } from "@/components/wms/export-button";
 import { PagedTable, SortableHeader } from "@/components/wms/paged-table";
 import { SetupNotice } from "@/components/wms/setup-notice";
 import { useInventoryByItemPage, useItems } from "@/hooks/use-wms";
-import { maskAmount } from "@/lib/rbac";
+import { exportFiltered, type ExportColumn } from "@/lib/export";
+import { canViewAmounts, maskAmount } from "@/lib/rbac";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   createInventoryParams,
+  fetchInventoryByItemPage,
   type InventoryParams,
   type InventorySortKey,
 } from "@/lib/wms/api";
@@ -32,18 +36,48 @@ const LOW_STOCK_THRESHOLD = 30;
 export function InventoryView({ role }: { role: UserRole }) {
   const [params, setParams] = useState<InventoryParams>(createInventoryParams);
   const [keyword, setKeyword] = useState("");
+  // 지연 검색어는 렌더 시점에 파라미터로 합성 (effect + setState 동기화 금지)
   const deferredKeyword = useDeferredValue(keyword);
+  const queryParams = useMemo(
+    () => ({ ...params, keyword: deferredKeyword }),
+    [params, deferredKeyword],
+  );
 
-  useEffect(() => {
-    setParams((prev) =>
-      prev.keyword === deferredKeyword
-        ? prev
-        : { ...prev, keyword: deferredKeyword, pageIndex: 0 },
-    );
-  }, [deferredKeyword]);
+  /** 검색어 변경 시 페이지만 즉시 1페이지로 — 검색어 자체는 지연 값으로 반영 */
+  const handleKeywordChange = (value: string) => {
+    setKeyword(value);
+    setParams((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
+  };
 
-  const query = useInventoryByItemPage(params);
+  const query = useInventoryByItemPage(queryParams);
   const { data: items } = useItems();
+
+  /** 엑셀 내보내기 — 금액 컬럼은 화면과 동일하게 VIEWER 마스킹 적용 */
+  const handleExport = () => {
+    const showAmounts = canViewAmounts(role);
+    const exportColumns: ExportColumn<InventoryByItemRow>[] = [
+      { header: "SKU", value: (r) => r.sku },
+      { header: "품목명", value: (r) => r.name },
+      { header: "카테고리", value: (r) => r.category },
+      { header: "단위", value: (r) => r.unit },
+      // 권한이 있으면 숫자 타입(합계 가능), 없으면 마스킹 문자열
+      { header: "단가", value: (r) => (showAmounts ? r.unitPrice : "₩ ***,***") },
+      { header: "총 재고", value: (r) => r.totalQty },
+      { header: "보유창고수", value: (r) => r.warehouseCount },
+      { header: "재고금액", value: (r) => (showAmounts ? r.totalValue : "₩ ***,***") },
+      { header: "재고부족", value: (r) => (r.totalQty < LOW_STOCK_THRESHOLD ? "Y" : "") },
+    ];
+    return exportFiltered(
+      (pageIndex, pageSize) =>
+        fetchInventoryByItemPage(getSupabaseBrowserClient(), {
+          ...queryParams,
+          pageIndex,
+          pageSize,
+        }),
+      exportColumns,
+      "재고현황",
+    );
+  };
 
   /** 카테고리 옵션은 품목 마스터에서 유도 */
   const categories = useMemo(
@@ -139,8 +173,10 @@ export function InventoryView({ role }: { role: UserRole }) {
           />
         </FilterField>
         <FilterField label="SKU/품목명 검색" className="col-span-2 sm:col-span-1">
-          <SearchFilter value={keyword} onChange={setKeyword} placeholder="SKU-1001 또는 품목명" />
+          <SearchFilter value={keyword} onChange={handleKeywordChange} placeholder="SKU-1001 또는 품목명" />
         </FilterField>
+
+        <ExportButton onExport={handleExport} className="col-span-2 sm:ml-auto" />
       </FilterBar>
 
       <PagedTable

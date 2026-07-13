@@ -2,7 +2,7 @@
 
 import type { ColumnDef } from "@tanstack/react-table";
 import { LandPlot, X } from "lucide-react";
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +13,7 @@ import {
   SearchFilter,
   SelectFilter,
 } from "@/components/wms/filters";
+import { ExportButton } from "@/components/wms/export-button";
 import { FloorPlan } from "@/components/wms/floor-plan";
 import { PagedTable, SortableHeader } from "@/components/wms/paged-table";
 import { SetupNotice, isSetupError } from "@/components/wms/setup-notice";
@@ -22,9 +23,12 @@ import {
   useWarehouses,
   useZoneInventory,
 } from "@/hooks/use-wms";
-import { maskAmount } from "@/lib/rbac";
+import { exportFiltered, type ExportColumn } from "@/lib/export";
+import { canViewAmounts, maskAmount } from "@/lib/rbac";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   createWarehouseInventoryParams,
+  fetchWarehouseInventoryPage,
   type WarehouseInventoryParams,
   type WarehouseInventorySortKey,
 } from "@/lib/wms/api";
@@ -52,17 +56,20 @@ export function WarehouseInventoryView({
     warehouseId: initialWarehouseId,
   }));
   const [keyword, setKeyword] = useState("");
+  // 지연 검색어는 렌더 시점에 파라미터로 합성 (effect + setState 동기화 금지)
   const deferredKeyword = useDeferredValue(keyword);
+  const queryParams = useMemo(
+    () => ({ ...params, keyword: deferredKeyword }),
+    [params, deferredKeyword],
+  );
 
-  useEffect(() => {
-    setParams((prev) =>
-      prev.keyword === deferredKeyword
-        ? prev
-        : { ...prev, keyword: deferredKeyword, pageIndex: 0 },
-    );
-  }, [deferredKeyword]);
+  /** 검색어 변경 시 페이지만 즉시 1페이지로 — 검색어 자체는 지연 값으로 반영 */
+  const handleKeywordChange = (value: string) => {
+    setKeyword(value);
+    setParams((prev) => (prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }));
+  };
 
-  const query = useWarehouseInventoryPage(params);
+  const query = useWarehouseInventoryPage(queryParams);
   const { data: warehouses } = useWarehouses();
   const { data: items } = useItems();
 
@@ -81,6 +88,33 @@ export function WarehouseInventoryView({
 
   const setZone = (zone: string) =>
     setParams((prev) => ({ ...prev, zone, pageIndex: 0 }));
+
+  /** 엑셀 내보내기 — 금액 컬럼은 화면과 동일하게 VIEWER 마스킹 적용 */
+  const handleExport = () => {
+    const showAmounts = canViewAmounts(role);
+    const exportColumns: ExportColumn<WarehouseInventoryRow>[] = [
+      { header: "창고", value: (r) => r.warehouseName },
+      { header: "창고코드", value: (r) => r.warehouseCode },
+      { header: "존", value: (r) => r.zoneCode ?? "" },
+      { header: "SKU", value: (r) => r.sku },
+      { header: "품목명", value: (r) => r.itemName },
+      { header: "카테고리", value: (r) => r.category },
+      { header: "단위", value: (r) => r.unit },
+      { header: "수량", value: (r) => r.qty },
+      { header: "재고금액", value: (r) => (showAmounts ? r.value : "₩ ***,***") },
+      { header: "최종 변동", value: (r) => new Date(r.updatedAt).toLocaleString("ko-KR") },
+    ];
+    return exportFiltered(
+      (pageIndex, pageSize) =>
+        fetchWarehouseInventoryPage(getSupabaseBrowserClient(), {
+          ...queryParams,
+          pageIndex,
+          pageSize,
+        }),
+      exportColumns,
+      "창고별재고현황",
+    );
+  };
 
   const columns = useMemo<ColumnDef<WarehouseInventoryRow>[]>(
     () => [
@@ -238,8 +272,10 @@ export function WarehouseInventoryView({
             />
           </FilterField>
           <FilterField label="SKU/품목명 검색" className="col-span-2 sm:col-span-1">
-            <SearchFilter value={keyword} onChange={setKeyword} placeholder="SKU-1001 또는 품목명" />
+            <SearchFilter value={keyword} onChange={handleKeywordChange} placeholder="SKU-1001 또는 품목명" />
           </FilterField>
+
+          <ExportButton onExport={handleExport} className="col-span-2 sm:ml-auto" />
         </FilterBar>
 
         <PagedTable

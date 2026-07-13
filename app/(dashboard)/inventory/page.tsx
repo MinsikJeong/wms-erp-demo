@@ -6,7 +6,7 @@ import { createInventoryParams, fetchInventoryByItemPage, fetchItems, wmsKeys } 
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
-  title: "재고현황 | ERP",
+  title: "재고현황 | StockFlow",
 };
 
 /** 4-1. 재고현황 — 품목별 전 창고 합산 (첫 페이지 서버 프리페치) */

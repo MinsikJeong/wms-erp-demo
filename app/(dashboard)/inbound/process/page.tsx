@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { canMutate } from "@/lib/rbac";
 
 export const metadata: Metadata = {
-  title: "입고처리 | NewSelect WMS",
+  title: "입고처리 | ERP",
 };
 
 /** 2-3. 입고처리 — 재고를 변경하므로 OPERATOR 이상만 접근 */
@@ -16,9 +16,7 @@ export default async function InboundProcessPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-lg font-semibold tracking-tight text-foreground md:text-xl">
-          입고처리
-        </h1>
+        <h1 className="text-lg font-semibold tracking-tight text-foreground md:text-xl">입고처리</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           실물 검수 결과로 수량을 확정하면 즉시 창고 재고에 가산됩니다.
         </p>

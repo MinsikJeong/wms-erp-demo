@@ -1,17 +1,11 @@
 "use client";
 
-import { CircleUser, Menu, Scale } from "lucide-react";
+import { CircleUser, Menu, Warehouse } from "lucide-react";
 import { useState } from "react";
 import { NavLinks } from "@/components/layout/nav-links";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import type { SessionUser, UserRole } from "@/lib/types";
 
 /** 권한별 뱃지 — 운영자가 자신의 권한을 항상 인지하도록 헤더에 상시 노출 */
@@ -43,8 +37,8 @@ export function Header({ user }: { user: SessionUser }) {
           <SheetContent side="left" className="w-64 p-0">
             <SheetHeader className="border-b px-5 py-4">
               <SheetTitle className="flex items-center gap-2 text-sm">
-                <Scale className="size-5" aria-hidden />
-                NewSelect FIS
+                <Warehouse className="size-5" aria-hidden />
+                ERP
               </SheetTitle>
             </SheetHeader>
             <NavLinks role={user.role} onNavigate={() => setNavOpen(false)} />
@@ -52,11 +46,9 @@ export function Header({ user }: { user: SessionUser }) {
         </Sheet>
 
         {/* 모바일에서는 브랜드, 데스크톱에서는 설명 문구 */}
-        <span className="text-sm font-semibold tracking-tight lg:hidden">
-          NewSelect FIS
-        </span>
+        <span className="text-sm font-semibold tracking-tight lg:hidden">ERP</span>
         <p className="hidden text-sm text-muted-foreground lg:block">
-          커머스 · 물류 · 재무 통합 인트라넷
+          창고관리 시스템 (WMS) — 입고 · 출고 · 재고 · ERP 연동
         </p>
       </div>
 

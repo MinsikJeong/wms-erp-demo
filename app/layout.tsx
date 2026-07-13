@@ -14,9 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NewSelect FIS — 재무 인트라넷",
-  description:
-    "커머스·물류·재무 데이터 검증 및 대사(Reconciliation)를 위한 사내 인트라넷",
+  title: "ERP — 창고관리 시스템",
+  description: "창고·입고·출고·재고 관리와 ERP 전표 연동을 위한 사내 WMS 인트라넷",
 };
 
 export default function RootLayout({
@@ -25,10 +24,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="ko"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
+    <html lang="ko" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         <Providers>{children}</Providers>
       </body>

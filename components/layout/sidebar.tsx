@@ -1,4 +1,4 @@
-import { Scale } from "lucide-react";
+import { Warehouse } from "lucide-react";
 import { NavLinks } from "@/components/layout/nav-links";
 import type { UserRole } from "@/lib/types";
 
@@ -10,10 +10,8 @@ export function Sidebar({ role }: { role: UserRole }) {
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground lg:flex">
       <div className="flex h-14 items-center gap-2 border-b px-5">
-        <Scale className="size-5" aria-hidden />
-        <span className="text-sm font-semibold tracking-tight">
-          NewSelect FIS
-        </span>
+        <Warehouse className="size-5" aria-hidden />
+        <span className="text-sm font-semibold tracking-tight">ERP</span>
       </div>
       <NavLinks role={role} />
     </aside>

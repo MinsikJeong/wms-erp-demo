@@ -1,20 +1,13 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getCurrentUser } from "@/lib/auth";
 import { canManageUsers } from "@/lib/rbac";
 import type { UserRole } from "@/lib/types";
 
 export const metadata: Metadata = {
-  title: "사용자/권한 관리 | NewSelect FIS",
+  title: "사용자/권한 관리 | ERP",
 };
 
 /** 데모용 구성원 목록 — 실제로는 사내 계정 디렉터리 API에서 조회 */
@@ -45,9 +38,7 @@ export default async function UsersManagementPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-lg font-semibold tracking-tight text-foreground md:text-xl">
-          사용자/권한 관리
-        </h1>
+        <h1 className="text-lg font-semibold tracking-tight text-foreground md:text-xl">사용자/권한 관리</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           인트라넷 구성원의 권한 등급(ADMIN · OPERATOR · VIEWER)을 관리합니다.
         </p>
@@ -65,16 +56,10 @@ export default async function UsersManagementPage() {
           <TableBody>
             {MEMBERS.map((member) => (
               <TableRow key={member.email}>
-                <TableCell className="font-medium text-foreground">
-                  {member.name}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {member.email}
-                </TableCell>
+                <TableCell className="font-medium text-foreground">{member.name}</TableCell>
+                <TableCell className="text-muted-foreground">{member.email}</TableCell>
                 <TableCell>
-                  <Badge variant={member.role === "ADMIN" ? "default" : "outline"}>
-                    {ROLE_LABELS[member.role]}
-                  </Badge>
+                  <Badge variant={member.role === "ADMIN" ? "default" : "outline"}>{ROLE_LABELS[member.role]}</Badge>
                 </TableCell>
               </TableRow>
             ))}

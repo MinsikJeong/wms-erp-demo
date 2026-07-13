@@ -16,8 +16,10 @@ import {
   fetchOrdersPage,
   fetchVouchersPage,
   fetchWarehouseInventoryPage,
+  fetchWarehouseStockSummary,
   fetchWarehouses,
   fetchWmsSummary,
+  fetchZoneInventory,
   processOrder,
   wmsKeys,
   type CreateOrderInput,
@@ -88,6 +90,23 @@ export function useWarehouses() {
     queryKey: wmsKeys.warehouses,
     queryFn: () => fetchWarehouses(supabase()),
     staleTime: 5 * 60_000,
+  });
+}
+
+/** 지리 지도용: 창고별 재고 요약 (좌표 포함) */
+export function useWarehouseStockSummary() {
+  return useQuery({
+    queryKey: wmsKeys.warehouseStockSummary,
+    queryFn: () => fetchWarehouseStockSummary(supabase()),
+  });
+}
+
+/** 평면도 히트맵용: 창고를 선택했을 때만 존별 집계 조회 (enabled 게이트) */
+export function useZoneInventory(warehouseId: string) {
+  return useQuery({
+    queryKey: wmsKeys.zoneInventory(warehouseId),
+    queryFn: () => fetchZoneInventory(supabase(), warehouseId),
+    enabled: warehouseId !== "",
   });
 }
 

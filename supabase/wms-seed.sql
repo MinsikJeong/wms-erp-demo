@@ -15,6 +15,8 @@ drop function if exists public.recon_summary();
 drop table if exists public.reconciliations;
 
 -- ---------- 기존 WMS 오브젝트 재생성 대비 정리 ----------
+drop view if exists public.v_warehouse_stock_summary;
+drop view if exists public.v_zone_inventory;
 drop view if exists public.v_warehouse_inventory;
 drop view if exists public.v_inventory_by_item;
 drop view if exists public.v_vouchers;
@@ -23,6 +25,7 @@ drop function if exists public.wms_summary();
 drop function if exists public.wms_create_voucher(uuid);
 drop function if exists public.wms_process_order(uuid, jsonb);
 drop function if exists public.wms_create_order(text, uuid, text, date, text, jsonb);
+drop function if exists public.wms_default_zone(uuid, uuid);
 drop table if exists public.erp_vouchers;
 drop table if exists public.wms_order_items;
 drop table if exists public.wms_orders;
@@ -41,6 +44,9 @@ create table public.warehouses (
   code text not null unique,
   name text not null,
   location text not null,
+  -- 지도 마커용 좌표 (WGS84)
+  lat double precision,
+  lng double precision,
   is_active boolean not null default true,
   created_at timestamptz not null default now()
 );
@@ -90,6 +96,8 @@ create index wms_order_items_order_idx on public.wms_order_items (order_id);
 create table public.inventory (
   warehouse_id uuid not null references public.warehouses(id),
   item_id uuid not null references public.items(id),
+  -- 고정 로케이션(존) — 평면도 히트맵/존 필터용, wms_default_zone 규칙으로 배정
+  zone_code text not null,
   qty int not null default 0 check (qty >= 0),
   updated_at timestamptz not null default now(),
   primary key (warehouse_id, item_id)
@@ -109,6 +117,16 @@ create table public.erp_vouchers (
 
 create sequence public.wms_order_seq;
 create sequence public.voucher_seq;
+
+-- 존 코드 결정 함수 — (창고, 품목) 해시로 항상 같은 존(A~C × 01~06)을 돌려준다
+create function public.wms_default_zone(p_warehouse uuid, p_item uuid)
+returns text
+language sql
+immutable
+as $$
+  select (array['A','B','C'])[1 + mod(abs(hashtext(p_warehouse::text || p_item::text)), 3)]
+    || '-' || lpad((1 + mod(abs(hashtext(p_item::text || p_warehouse::text)), 6))::text, 2, '0');
+$$;
 
 -- ============================================================
 -- 2. RLS — anon 은 조회만 가능, 쓰기는 RPC(security definer)로만
@@ -179,11 +197,38 @@ with (security_invoker = true) as
 select
   inv.warehouse_id, w.code as warehouse_code, w.name as warehouse_name,
   inv.item_id, i.sku, i.name as item_name, i.category, i.unit,
+  inv.zone_code,
   inv.qty, (inv.qty * i.unit_price)::bigint as value,
   inv.updated_at
 from public.inventory inv
 join public.warehouses w on w.id = inv.warehouse_id
 join public.items i on i.id = inv.item_id;
+
+-- 지리 지도 팝업용: 창고별 재고 요약
+create view public.v_warehouse_stock_summary
+with (security_invoker = true) as
+select
+  w.id, w.code, w.name, w.location, w.is_active, w.lat, w.lng,
+  count(inv.item_id) filter (where inv.qty > 0)::int as item_kinds,
+  coalesce(sum(inv.qty), 0)::int as total_qty,
+  coalesce(sum(inv.qty * i.unit_price), 0)::bigint as total_value
+from public.warehouses w
+left join public.inventory inv on inv.warehouse_id = w.id
+left join public.items i on i.id = inv.item_id
+group by w.id;
+
+-- 평면도 히트맵용: 창고 × 존 재고 집계
+create view public.v_zone_inventory
+with (security_invoker = true) as
+select
+  inv.warehouse_id,
+  inv.zone_code,
+  count(*) filter (where inv.qty > 0)::int as item_kinds,
+  coalesce(sum(inv.qty), 0)::int as total_qty,
+  coalesce(sum(inv.qty * i.unit_price), 0)::bigint as total_value
+from public.inventory inv
+join public.items i on i.id = inv.item_id
+group by inv.warehouse_id, inv.zone_code;
 
 -- ============================================================
 -- 4. 변경용 RPC (security definer — anon 직접 쓰기 차단 유지)
@@ -273,9 +318,12 @@ begin
     end if;
 
     if v_order.direction = 'IN' then
-      -- 입고: 재고 가산 (없으면 생성)
-      insert into inventory (warehouse_id, item_id, qty, updated_at)
-      values (v_order.warehouse_id, v_item_id, v_qty, now())
+      -- 입고: 재고 가산 (신규 품목이면 고정 로케이션 규칙으로 존 배정)
+      insert into inventory (warehouse_id, item_id, qty, zone_code, updated_at)
+      values (
+        v_order.warehouse_id, v_item_id, v_qty,
+        wms_default_zone(v_order.warehouse_id, v_item_id), now()
+      )
       on conflict (warehouse_id, item_id)
       do update set qty = inventory.qty + excluded.qty, updated_at = now();
     else
@@ -360,11 +408,11 @@ $$;
 -- 5. 시드 데이터
 -- ============================================================
 
-insert into public.warehouses (code, name, location) values
-  ('WH-ICN1', '인천 제1물류센터', '인천 중구 공항동로 296'),
-  ('WH-GMP1', '김포 풀필먼트센터', '경기 김포시 고촌읍 아라육로 152'),
-  ('WH-YJU1', '용인 상온센터', '경기 용인시 처인구 양지면 추계로 32'),
-  ('WH-BSN1', '부산 남부센터', '부산 강서구 미음산단로 25');
+insert into public.warehouses (code, name, location, lat, lng) values
+  ('WH-ICN1', '인천 제1물류센터', '인천 중구 공항동로 296', 37.4490, 126.4510),
+  ('WH-GMP1', '김포 풀필먼트센터', '경기 김포시 고촌읍 아라육로 152', 37.6010, 126.7700),
+  ('WH-YJU1', '용인 상온센터', '경기 용인시 처인구 양지면 추계로 32', 37.2260, 127.2830),
+  ('WH-BSN1', '부산 남부센터', '부산 강서구 미음산단로 25', 35.1550, 128.8550);
 
 insert into public.items (sku, name, category, unit, unit_price) values
   ('SKU-1001', '프리미엄 단백질 쉐이크 초코', '건강식품', 'EA', 32000),
@@ -389,8 +437,8 @@ insert into public.items (sku, name, category, unit, unit_price) values
   ('SKU-5004', '스포츠 물통 1L', '스포츠', 'EA', 9500);
 
 -- 창고 × 품목 초기 재고 (결정적 의사난수 수량 40~490 — 출고 처리 시연에 충분)
-insert into public.inventory (warehouse_id, item_id, qty)
-select w.id, i.id, 40 + ((w.rn * 97 + i.rn * 31) % 450)
+insert into public.inventory (warehouse_id, item_id, zone_code, qty)
+select w.id, i.id, public.wms_default_zone(w.id, i.id), 40 + ((w.rn * 97 + i.rn * 31) % 450)
 from (select id, row_number() over (order by code) rn from public.warehouses) w
 cross join (select id, row_number() over (order by sku) rn from public.items) i;
 

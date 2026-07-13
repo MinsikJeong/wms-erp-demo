@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { canMutate } from "@/lib/rbac";
 
 export const metadata: Metadata = {
-  title: "ERP 전표생성(입고) | NewSelect WMS",
+  title: "ERP 전표생성(입고) | ERP",
 };
 
 /** 2-4. ERP 전표생성(입고=매입) — 회계 데이터를 생성하므로 OPERATOR 이상 */
@@ -16,9 +16,7 @@ export default async function InboundVouchersPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-lg font-semibold tracking-tight text-foreground md:text-xl">
-          ERP 전표생성 (입고)
-        </h1>
+        <h1 className="text-lg font-semibold tracking-tight text-foreground md:text-xl">ERP 전표생성 (입고)</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           입고 처리 완료 문서의 매입 금액을 집계해 ERP 회계 전표를 발행합니다.
         </p>

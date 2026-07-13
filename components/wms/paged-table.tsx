@@ -41,6 +41,14 @@ import { cn, num } from "@/lib/utils";
  * - keepPreviousData 전환 중(isPlaceholderData)에는 이전 데이터를 흐리게 유지.
  */
 
+/** table.options.meta 타입 확장 — 셀 렌더러에서 권한(마스킹) 참조용 */
+declare module "@tanstack/react-table" {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface TableMeta<TData> {
+    role: UserRole;
+  }
+}
+
 export interface SortInput {
   sortBy: string;
   sortDir: "asc" | "desc";

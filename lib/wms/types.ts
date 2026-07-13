@@ -16,6 +16,25 @@ export interface Warehouse {
   name: string;
   location: string;
   isActive: boolean;
+  /** 지도 마커용 좌표 (WGS84) — 마이그레이션 전에는 null */
+  lat: number | null;
+  lng: number | null;
+}
+
+/** 지리 지도 팝업용 창고별 재고 요약 (v_warehouse_stock_summary 뷰) */
+export interface WarehouseStockSummary extends Warehouse {
+  itemKinds: number;
+  totalQty: number;
+  totalValue: number;
+}
+
+/** 평면도 히트맵용 존별 재고 집계 (v_zone_inventory 뷰) */
+export interface ZoneStock {
+  warehouseId: string;
+  zoneCode: string;
+  itemKinds: number;
+  totalQty: number;
+  totalValue: number;
 }
 
 export interface Item {
@@ -98,6 +117,8 @@ export interface WarehouseInventoryRow {
   itemName: string;
   category: string;
   unit: string;
+  /** 고정 로케이션(존) 코드, 예: A-03 — 마이그레이션 전에는 null */
+  zoneCode: string | null;
   qty: number;
   value: number;
   updatedAt: string;

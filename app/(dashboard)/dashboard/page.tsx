@@ -1,57 +1,64 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, DatabaseZap, Scale } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { MetricCards } from "@/components/reconciliation/metric-cards";
+import { ArrowDownToLine, ArrowRight, ArrowUpFromLine, Boxes, DatabaseZap } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SummaryCards } from "@/components/wms/summary-cards";
 import { getCurrentUser } from "@/lib/auth";
-import { fetchReconSummary } from "@/lib/recon";
+import { fetchWmsSummary } from "@/lib/wms/api";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import type { WmsSummary } from "@/lib/wms/types";
 
 export const metadata: Metadata = {
-  title: "대시보드 | NewSelect FIS",
+  title: "대시보드 | ERP",
 };
+
+const QUICK_LINKS = [
+  {
+    href: "/inbound/process",
+    title: "입고처리 바로가기",
+    description: "도착한 상품의 수량을 확정하고 재고에 반영합니다.",
+    icon: ArrowDownToLine,
+  },
+  {
+    href: "/outbound/process",
+    title: "출고처리 바로가기",
+    description: "피킹/패킹 완료 건을 확정하고 재고에서 차감합니다.",
+    icon: ArrowUpFromLine,
+  },
+  {
+    href: "/inventory",
+    title: "재고현황 바로가기",
+    description: "품목별·창고별 현재고와 재고 부족 품목을 확인합니다.",
+    icon: Boxes,
+  },
+];
 
 /**
  * 메인 대시보드 (서버 컴포넌트).
- * 출근 직후 확인하는 "오늘의 재무 리스크 요약" 화면.
- * 요약만 필요하므로 TanStack Query 하이드레이션 없이 RSC에서 직접 조회하고,
- * 테이블 미생성 등 조회 실패 시 초기 세팅 안내로 대체한다.
+ * 출근 직후 확인하는 "오늘의 창고 작업 현황" 화면.
+ * 집계는 wms_summary RPC가 DB에서 1회 계산한다.
  */
 export default async function DashboardPage() {
   const user = await getCurrentUser();
 
-  let summary = null;
+  let summary: WmsSummary | null = null;
   try {
-    // 집계는 DB RPC가 1회 계산 — 행 전체를 서버로 가져오지 않는다
-    summary = await fetchReconSummary(getSupabaseServerClient());
+    summary = await fetchWmsSummary(getSupabaseServerClient());
   } catch {
-    // 조회 실패(테이블/함수 미생성 포함) — 아래에서 안내 카드로 분기
+    // 스키마 미생성 — 아래 안내 카드로 분기
   }
 
-  const openIssues = summary
-    ? summary.mismatchCount + summary.duplicatedCount + summary.missingCount
-    : 0;
+  const todayTotal = summary ? summary.todayInbound + summary.todayOutbound : 0;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-lg font-semibold tracking-tight text-foreground md:text-xl">
-          대시보드
-        </h1>
+        <h1 className="text-lg font-semibold tracking-tight text-foreground md:text-xl">대시보드</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {summary ? (
             <>
-              {user.name}님, 오늘 확인이 필요한 대사 이슈가{" "}
-              <span className="font-semibold text-red-600 dark:text-red-400">
-                {openIssues}건
-              </span>{" "}
-              있습니다.
+              {user.name}님, 오늘 처리할 입·출고 예정이{" "}
+              <span className="font-semibold text-foreground">{todayTotal}건</span> 있습니다.
             </>
           ) : (
             <>{user.name}님, 환영합니다.</>
@@ -60,7 +67,7 @@ export default async function DashboardPage() {
       </div>
 
       {summary ? (
-        <MetricCards summary={summary} role={user.role} />
+        <SummaryCards summary={summary} role={user.role} />
       ) : (
         <Card>
           <CardHeader>
@@ -70,36 +77,35 @@ export default async function DashboardPage() {
             </CardTitle>
             <CardDescription>
               Supabase Dashboard → SQL Editor에서 프로젝트의{" "}
-              <code className="rounded bg-muted px-1 py-0.5 text-xs">
-                supabase/seed.sql
-              </code>{" "}
-              내용을 1회 실행하면 대사 데이터가 준비됩니다.
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">supabase/wms-seed.sql</code> 내용을 1회 실행하면
+              WMS 데이터가 준비됩니다.
             </CardDescription>
           </CardHeader>
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Scale className="size-4 text-muted-foreground" aria-hidden />
-            정산 대사 바로가기
-          </CardTitle>
-          <CardDescription>
-            OMS · WMS · PG 3개 시스템의 데이터를 건별로 대조하고, 불일치 건을
-            필터링해 엑셀로 내려받을 수 있습니다.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Link
-            href="/reconciliation"
-            className="inline-flex items-center gap-1 text-sm font-medium text-foreground underline-offset-4 hover:underline"
-          >
-            대사 화면으로 이동
-            <ArrowRight className="size-4" aria-hidden />
-          </Link>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {QUICK_LINKS.map((link) => (
+          <Card key={link.href} size="sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <link.icon className="size-4 text-muted-foreground" aria-hidden />
+                {link.title}
+              </CardTitle>
+              <CardDescription>{link.description}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link
+                href={link.href}
+                className="inline-flex items-center gap-1 text-sm font-medium text-foreground underline-offset-4 hover:underline"
+              >
+                이동
+                <ArrowRight className="size-4" aria-hidden />
+              </Link>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }

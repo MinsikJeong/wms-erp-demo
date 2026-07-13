@@ -6,10 +6,12 @@ import type {
   VoucherRow,
   Warehouse,
   WarehouseInventoryRow,
+  WarehouseStockSummary,
   WmsOrderLine,
   WmsOrderRow,
   WmsOrderStatus,
   WmsSummary,
+  ZoneStock,
 } from "@/lib/wms/types";
 
 /**
@@ -56,6 +58,8 @@ export const wmsKeys = {
   warehouseInventory: (params: WarehouseInventoryParams) =>
     ["wms", "inventory-warehouse", params] as const,
   warehouses: ["wms", "warehouses"] as const,
+  warehouseStockSummary: ["wms", "warehouse-stock-summary"] as const,
+  zoneInventory: (warehouseId: string) => ["wms", "zone-inventory", warehouseId] as const,
   items: ["wms", "items"] as const,
   summary: ["wms", "summary"] as const,
 };
@@ -67,7 +71,9 @@ export const wmsKeys = {
 export async function fetchWarehouses(client: SupabaseClient): Promise<Warehouse[]> {
   const { data, error } = await client
     .from("warehouses")
-    .select("id, code, name, location, is_active")
+    // lat/lng는 02-warehouse-map.sql 이후에만 존재 — 컬럼 명시 대신 * 로
+    // 조회해 마이그레이션 전에도 창고 필터가 동작하게 한다
+    .select("*")
     .order("code");
   if (error) throwQueryError(error);
   return data.map((w) => ({
@@ -76,6 +82,51 @@ export async function fetchWarehouses(client: SupabaseClient): Promise<Warehouse
     name: w.name,
     location: w.location,
     isActive: w.is_active,
+    lat: w.lat ?? null,
+    lng: w.lng ?? null,
+  }));
+}
+
+/** 지리 지도용: 창고별 재고 요약 (좌표 포함) */
+export async function fetchWarehouseStockSummary(
+  client: SupabaseClient,
+): Promise<WarehouseStockSummary[]> {
+  const { data, error } = await client
+    .from("v_warehouse_stock_summary")
+    .select("*")
+    .order("code");
+  if (error) throwQueryError(error);
+  return data.map((w) => ({
+    id: w.id,
+    code: w.code,
+    name: w.name,
+    location: w.location,
+    isActive: w.is_active,
+    lat: w.lat ?? null,
+    lng: w.lng ?? null,
+    itemKinds: w.item_kinds,
+    totalQty: w.total_qty,
+    totalValue: w.total_value,
+  }));
+}
+
+/** 평면도 히트맵용: 특정 창고의 존별 재고 집계 */
+export async function fetchZoneInventory(
+  client: SupabaseClient,
+  warehouseId: string,
+): Promise<ZoneStock[]> {
+  const { data, error } = await client
+    .from("v_zone_inventory")
+    .select("*")
+    .eq("warehouse_id", warehouseId)
+    .order("zone_code");
+  if (error) throwQueryError(error);
+  return data.map((z) => ({
+    warehouseId: z.warehouse_id,
+    zoneCode: z.zone_code,
+    itemKinds: z.item_kinds,
+    totalQty: z.total_qty,
+    totalValue: z.total_value,
   }));
 }
 
@@ -355,6 +406,8 @@ export interface WarehouseInventoryParams {
   sortBy: WarehouseInventorySortKey;
   sortDir: "asc" | "desc";
   warehouseId: string;
+  /** 존(로케이션) 필터 — 평면도 존 클릭으로 설정된다 */
+  zone: string;
   category: string;
   keyword: string;
 }
@@ -366,6 +419,7 @@ export function createWarehouseInventoryParams(): WarehouseInventoryParams {
     sortBy: "sku",
     sortDir: "asc",
     warehouseId: "",
+    zone: "",
     category: "",
     keyword: "",
   };
@@ -377,6 +431,7 @@ export async function fetchWarehouseInventoryPage(
 ): Promise<PageResult<WarehouseInventoryRow>> {
   let q = client.from("v_warehouse_inventory").select("*", { count: "exact" });
   if (params.warehouseId) q = q.eq("warehouse_id", params.warehouseId);
+  if (params.zone) q = q.eq("zone_code", params.zone);
   if (params.category) q = q.eq("category", params.category);
   if (params.keyword.trim()) {
     const kw = `%${escapeLike(params.keyword.trim())}%`;
@@ -402,6 +457,7 @@ export async function fetchWarehouseInventoryPage(
       itemName: r.item_name,
       category: r.category,
       unit: r.unit,
+      zoneCode: r.zone_code ?? null,
       qty: r.qty,
       value: r.value,
       updatedAt: r.updated_at,

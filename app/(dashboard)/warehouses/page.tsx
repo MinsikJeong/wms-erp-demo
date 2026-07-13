@@ -2,26 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, DatabaseZap, Warehouse as WarehouseIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { WarehouseMapPanel } from "@/components/wms/warehouse-map-panel";
+import { getCurrentUser } from "@/lib/auth";
 import { fetchWarehouses } from "@/lib/wms/api";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { Warehouse } from "@/lib/wms/types";
 
 export const metadata: Metadata = {
-  title: "창고관리 | NewSelect WMS",
+  title: "창고관리 | ERP",
 };
 
 /**
@@ -29,6 +19,7 @@ export const metadata: Metadata = {
  * 창고 마스터는 소량이라 페이지네이션 없이 RSC에서 직접 조회한다.
  */
 export default async function WarehousesPage() {
+  const user = await getCurrentUser();
   let warehouses: Warehouse[] | null = null;
   try {
     warehouses = await fetchWarehouses(getSupabaseServerClient());
@@ -39,13 +30,12 @@ export default async function WarehousesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-lg font-semibold tracking-tight text-foreground md:text-xl">
-          창고관리
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          물류 거점(자사·풀필먼트 센터) 마스터 정보를 관리합니다.
-        </p>
+        <h1 className="text-lg font-semibold tracking-tight text-foreground md:text-xl">창고관리</h1>
+        <p className="mt-1 text-sm text-muted-foreground">물류 거점(자사·풀필먼트 센터) 마스터 정보를 관리합니다.</p>
       </div>
+
+      {/* 전국 거점 지도 — 마커 팝업에 재고 요약 + 상세 링크 */}
+      <WarehouseMapPanel role={user.role} />
 
       {warehouses === null ? (
         <Card className="mx-auto max-w-xl">
@@ -56,10 +46,8 @@ export default async function WarehousesPage() {
             </CardTitle>
             <CardDescription>
               Supabase Dashboard → SQL Editor에서{" "}
-              <code className="rounded bg-muted px-1 py-0.5 text-xs">
-                supabase/wms-seed.sql
-              </code>
-              을 1회 실행한 뒤 새로고침하세요.
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">supabase/wms-seed.sql</code>을 1회 실행한 뒤
+              새로고침하세요.
             </CardDescription>
           </CardHeader>
         </Card>

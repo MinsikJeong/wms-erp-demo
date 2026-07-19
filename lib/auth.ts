@@ -26,7 +26,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser> => {
   return {
     id: "emp-20240627",
     name: "정민식",
-    email: "minsik.jeong@newselect.co.kr",
+    email: "minsik.jeong@minsigi.co.kr",
     department: "FIS팀",
     role,
   };

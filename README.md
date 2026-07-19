@@ -11,6 +11,7 @@
 
 | 어디서 | 무엇을 |
 |---|---|
+| **AI 어시스턴트** 메뉴 | "오늘 입고예정 중 부산 남부센터의 골드서플라이 건 취소해줘" 같은 자연어 명령을 Gemini가 구조화된 계획으로 해석 → 대상 문서 미리보기 → 사용자가 확인해야 실행됩니다. |
 | 헤더 우측 **권한 스위처** | 관리자 → 조회 전용으로 바꾸면 메뉴가 줄고, 모든 금액이 `₩ ***,***`로 마스킹되고, 처리 버튼이 사라집니다. 새로고침 없이 즉시 반영됩니다. |
 | 대시보드 **물동량 추이** | 기간(7/14/30일) 전환, 입고·출고 스탯 블록 클릭으로 계열 숨김/표시, 호버 크로스헤어 툴팁. 서버 재요청 없이 반응합니다. |
 | 각 목록의 **엑셀 버튼** | 화면의 10행이 아니라 "현재 필터 조건 전체"를 .xlsx로 내려받습니다. 조회 전용 권한이면 파일 안의 금액도 마스킹됩니다. |
@@ -61,19 +62,30 @@ PostgREST의 1회 응답 상한(1,000행)에 맞춰 같은 조회 함수를 청�
 필터 조건 전체를 모으고, 10,000행 상한으로 브라우저를 보호합니다.
 SheetJS는 내보내기 시점에만 동적 import 되어 초기 번들에 포함되지 않습니다.
 
+**6. AI 어시스턴트 — LLM에게 실행 권한을 주지 않는다**
+LLM(Gemini)의 역할은 자연어를 화이트리스트 액션 + 필터 조건의 JSON 계획으로
+변환하는 것까지입니다. 서버가 그 조건으로 대상을 조회해 미리보기(dry-run)를 보여주고,
+사용자가 실행 버튼을 눌러야만 — 그 시점에 권한(OPERATOR+)·문서 상태를 재검증하고
+1회 20건 상한 안에서 — 기존 security definer RPC로 실행합니다.
+LLM 출력도 외부 입력으로 취급해 서버에서 스키마 검증을 한 번 더 거칩니다.
+
+![AI 어시스턴트](docs/ai-assistant.png)
+
 ## 실행 방법
 
 ```bash
 # 1. 의존성 설치
 npm install
 
-# 2. 환경 변수 — .env.local 생성
+# 2. 환경 변수 — .env.local 생성 (.env.example 참고)
 NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key>
+GEMINI_API_KEY=<gemini api key>   # AI 어시스턴트용 (서버 전용)
 
 # 3. DB 초기화 — Supabase Dashboard > SQL Editor에서 순서대로 1회 실행
 #    supabase/wms-seed.sql          (스키마 + RPC + 시드 데이터)
 #    supabase/02-warehouse-map.sql  (창고 좌표 + 존/평면도)
+#    supabase/03-ai-assistant.sql   (예정 취소 RPC — AI 어시스턴트)
 
 # 4. 개발 서버
 npm run dev
@@ -87,6 +99,7 @@ DB를 초기화하지 않고 접속하면 대시보드가 세팅 안내 카드�
 app/
   (dashboard)/          # 인트라넷 레이아웃 라우트 그룹 (사이드바+헤더)
     dashboard/          # 메인 대시보드 (KPI·차트·최근 활동)
+    assistant/          # AI 어시스턴트 (자연어 → 미리보기 → 확인 실행)
     inbound/            # 입고: 예정 등록 → 현황 → 처리 → ERP 전표
     outbound/           # 출고: 동일 흐름
     inventory/          # 재고현황 / 창고별재고현황(평면도)
@@ -94,14 +107,17 @@ app/
     management/users/   # 사용자/권한 관리 (ADMIN 전용)
     loading.tsx         # 공용 로딩 스켈레톤 (즉시 화면 전환)
   actions.ts            # Server Actions (데모 권한 전환)
+  ai/actions.ts         # AI Server Actions (계획 수립 dry-run / 검증 후 실행)
 components/
   layout/               # 사이드바·헤더·권한 스위처·낙관적 내비게이션
   dashboard/            # 히어로 차트·구성비·바 리스트·활동 피드
+  ai/                   # AI 어시스턴트 화면 (미리보기·실행 결과)
   wms/                  # 목록 테이블·필터·콤보박스·엑셀 버튼·지도·평면도
   ui/                   # shadcn/ui 프리미티브
 hooks/use-wms.ts        # TanStack Query 훅 (조회/뮤테이션)
 lib/
   wms/api.ts            # 데이터 액세스 레이어 (페이지네이션·검색·RPC 호출)
+  ai/gemini.ts          # Gemini 구조화 출력 파서 (서버 전용, 출력 재검증)
   export.ts             # 엑셀 내보내기 (청크 조회 + xlsx 생성)
   rbac.ts               # 권한 정책 단일 소스 (메뉴·가드·마스킹 공용)
   auth.ts               # 세션 조회 (SSO 교체 지점)

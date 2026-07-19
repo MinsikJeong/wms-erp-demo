@@ -12,10 +12,10 @@ export const metadata: Metadata = {
 
 /** 데모용 구성원 목록 — 실제로는 사내 계정 디렉터리 API에서 조회 */
 const MEMBERS: { name: string; email: string; role: UserRole }[] = [
-  { name: "정민식", email: "minsik.jeong@newselect.co.kr", role: "ADMIN" },
-  { name: "김하영", email: "hayoung.kim@newselect.co.kr", role: "OPERATOR" },
-  { name: "이준호", email: "junho.lee@newselect.co.kr", role: "OPERATOR" },
-  { name: "박서연", email: "seoyeon.park@newselect.co.kr", role: "VIEWER" },
+  { name: "정민식", email: "minsik.jeong@minsigi.co.kr", role: "ADMIN" },
+  { name: "김하영", email: "hayoung.kim@minsigi.co.kr", role: "OPERATOR" },
+  { name: "이준호", email: "junho.lee@minsigi.co.kr", role: "OPERATOR" },
+  { name: "박서연", email: "seoyeon.park@minsigi.co.kr", role: "VIEWER" },
 ];
 
 const ROLE_LABELS: Record<UserRole, string> = {

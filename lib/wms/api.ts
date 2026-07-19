@@ -664,3 +664,15 @@ export async function createVoucher(
   if (error) throwQueryError(error);
   return data as string;
 }
+
+/** 예정 문서 취소 (SCHEDULED 전용 — DB가 상태를 재검증) → 문서번호 반환 */
+export async function cancelOrder(
+  client: SupabaseClient,
+  orderId: string,
+): Promise<string> {
+  const { data, error } = await client.rpc("wms_cancel_order", {
+    p_order_id: orderId,
+  });
+  if (error) throwQueryError(error);
+  return data as string;
+}

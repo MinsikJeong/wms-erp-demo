@@ -13,6 +13,7 @@ import {
   Loader2,
   PackageCheck,
   ReceiptText,
+  Sparkles,
   Truck,
   Users,
   Warehouse,
@@ -49,6 +50,13 @@ const NAV_SECTIONS: NavSection[] = [
     title: "홈",
     items: [
       { href: "/dashboard", label: "대시보드", icon: LayoutDashboard, minRole: "VIEWER" },
+    ],
+  },
+  {
+    title: "AI",
+    items: [
+      // 조회는 VIEWER도 가능 — 변경 실행은 서버 액션이 OPERATOR 이상을 강제
+      { href: "/assistant", label: "AI 어시스턴트", icon: Sparkles, minRole: "VIEWER" },
     ],
   },
   {

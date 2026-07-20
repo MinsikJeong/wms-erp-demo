@@ -33,7 +33,8 @@ export default async function OutboundListPage() {
       <div>
         <h1 className="text-lg font-semibold tracking-tight text-foreground md:text-xl">출고예정현황</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          판매채널·거래처로 출고 예정·완료된 문서를 조회합니다. 실물 처리는 출고처리 메뉴에서 진행하세요.
+          판매채널·거래처로 출고 예정·완료된 문서를 조회합니다. 실물 피킹은 출고피킹,
+          처리는 출고처리 메뉴에서 진행하세요.
         </p>
       </div>
       <HydrationBoundary state={dehydrate(queryClient)}>

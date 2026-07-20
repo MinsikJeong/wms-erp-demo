@@ -26,9 +26,11 @@ import type { UserRole } from "@/lib/types";
  * 입·출고 문서 목록 (현황/처리/전표 페이지 공용).
  *
  * - direction: IN(입고) / OUT(출고)
- * - lockedStatus: 지정 시 해당 상태만 조회하고 상태 필터를 숨긴다
- *   (입고처리 → SCHEDULED, 전표생성 → PROCESSED)
- * - action: 행별 액션 버튼 렌더러 (처리하기 / 전표생성)
+ * - lockedStatus: 지정 시 해당 상태(들)만 조회하고 상태 필터를 숨긴다
+ *   (입고처리 → SCHEDULED, 출고처리 → [SCHEDULED, PICKING], 피킹 → [SCHEDULED, PICKING], 전표생성 → PROCESSED)
+ * - action: 행별 액션 버튼 렌더러 (처리하기 / 전표생성 / 피킹하기)
+ * - emptyMessage: 빈 목록 안내 문구. 출고처리/피킹처럼 lockedStatus가 같아도
+ *   화면 목적이 다르면 호출부에서 명시적으로 넘긴다
  *
  * 페이지·필터·정렬 변경 시 서버(Supabase)에서 해당 페이지만 다시 가져온다.
  */
@@ -37,14 +39,16 @@ export function OrdersTable({
   role,
   lockedStatus,
   action,
+  emptyMessage,
 }: {
   direction: Direction;
   role: UserRole;
-  lockedStatus?: WmsOrderStatus;
+  lockedStatus?: WmsOrderStatus | WmsOrderStatus[];
   action?: {
     header: string;
     cell: (row: WmsOrderRow) => React.ReactNode;
   };
+  emptyMessage?: string;
 }) {
   const [params, setParams] = useState<OrdersParams>(() =>
     createOrdersParams(direction, lockedStatus ? { status: lockedStatus } : {}),
@@ -85,7 +89,7 @@ export function OrdersTable({
       { header: "예정수량", value: (r) => r.totalExpectedQty },
       {
         header: "처리수량",
-        value: (r) => (r.status === "SCHEDULED" ? "" : r.totalProcessedQty),
+        value: (r) => (r.status === "SCHEDULED" || r.status === "PICKING" ? "" : r.totalProcessedQty),
       },
       { header: "상태", value: (r) => orderStatusLabel(r.status, r.direction) },
       { header: "전표번호", value: (r) => r.voucherNo ?? "" },
@@ -123,7 +127,9 @@ export function OrdersTable({
         {!lockedStatus && (
           <FilterField label="상태">
             <SelectFilter
-              value={params.status}
+              // lockedStatus가 없을 때만 렌더되는 필터라 params.status는 항상 단일 값이지만
+              // OrdersParams.status는 배열도 허용하는 타입이라 SelectFilter(string) 앞에서 좁혀준다
+              value={typeof params.status === "string" ? params.status : ""}
               onChange={(status) =>
                 updateFilter({ status: status as OrdersParams["status"] })
               }
@@ -173,11 +179,12 @@ export function OrdersTable({
         role={role}
         getRowId={(row) => row.id}
         emptyMessage={
-          lockedStatus === "SCHEDULED"
-            ? "처리 대기 중인 문서가 없습니다."
-            : lockedStatus === "PROCESSED"
-              ? "전표 생성 대상 문서가 없습니다."
-              : "조건에 해당하는 문서가 없습니다."
+          emptyMessage ??
+          (lockedStatus === "SCHEDULED" || lockedStatus === "PROCESSED"
+            ? lockedStatus === "SCHEDULED"
+              ? "처리 대기 중인 문서가 없습니다."
+              : "전표 생성 대상 문서가 없습니다."
+            : "조건에 해당하는 문서가 없습니다.")
         }
         minWidthClass="min-w-240"
       />

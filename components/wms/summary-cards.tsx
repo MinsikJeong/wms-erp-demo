@@ -3,6 +3,7 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   ClipboardClock,
+  ListChecks,
   PackageX,
   ReceiptText,
   type LucideIcon,
@@ -55,10 +56,18 @@ export function SummaryCards({ summary }: { summary: WmsSummary }) {
     {
       title: "미처리 출고",
       value: `${num.format(summary.pendingOutbound)}건`,
-      caption: "출고처리 대기",
+      caption: "출고처리 대기(피킹 포함)",
       icon: ClipboardClock,
       href: "/outbound/process",
       accent: summary.pendingOutbound > 0,
+    },
+    {
+      title: "피킹 진행중",
+      value: `${num.format(summary.pickingCount)}건`,
+      caption: "출고 피킹 작업중",
+      icon: ListChecks,
+      href: "/outbound/picking",
+      accent: false,
     },
     {
       title: "전표 미생성",
@@ -79,7 +88,7 @@ export function SummaryCards({ summary }: { summary: WmsSummary }) {
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 xl:grid-cols-6">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 xl:grid-cols-7">
       {metrics.map((metric) => (
         <Link key={metric.title} href={metric.href} className="group focus-visible:outline-none">
           <Card

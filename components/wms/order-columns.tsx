@@ -65,7 +65,15 @@ export function buildOrderColumns(options?: {
       accessorKey: "totalProcessedQty",
       header: () => <div className="text-right">처리수량</div>,
       cell: ({ row }) => {
-        const { status, totalProcessedQty, totalExpectedQty } = row.original;
+        const { status, totalProcessedQty, totalExpectedQty, totalPickedQty } = row.original;
+        if (status === "PICKING") {
+          // 아직 처리(재고 반영) 전이므로 처리수량 대신 피킹 진행률을 보여준다
+          return (
+            <div className="text-right text-xs tabular-nums text-amber-600">
+              피킹 {num.format(totalPickedQty)}/{num.format(totalExpectedQty)}
+            </div>
+          );
+        }
         if (status === "SCHEDULED") {
           return <div className="text-right text-muted-foreground">—</div>;
         }

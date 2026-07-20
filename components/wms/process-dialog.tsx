@@ -28,9 +28,10 @@ import { num } from "@/lib/utils";
 /**
  * 입·출고 처리 다이얼로그.
  *
- * 예정 문서의 품목 라인을 보여주고 실물 수량을 확정한다 (기본값 = 예정수량,
- * 검수 차이 시 하향 조정 가능). 확정 시 wms_process_order RPC가
- * 수량 확정 + 재고 반영 + 상태 변경을 원자적으로 수행한다.
+ * 예정 문서의 품목 라인을 보여주고 실물 수량을 확정한다. 출고 문서가 피킹을 거쳤다면
+ * 기본값 = 피킹 확정 수량(실제로 집계한 실물), 피킹 이력이 없으면 예정수량 — 검수 차이
+ * 시 하향 조정 가능하다. 확정 시 wms_process_order RPC가 수량 확정 + 재고 반영 + 상태
+ * 변경을 원자적으로 수행한다.
  * 출고 시 재고 부족이면 DB가 전체 롤백하고 오류를 반환한다 → 토스트로 안내.
  */
 export function ProcessDialog({
@@ -48,8 +49,9 @@ export function ProcessDialog({
   // order_item_id는 문서마다 유일하므로 문서 간 값이 섞이지 않는다 —
   // effect로 초기화하면 캐스케이딩 렌더가 생겨 파생 방식을 쓴다.
   const [overrides, setOverrides] = useState<Record<string, string>>({});
-  const qtyOf = (lineId: string, expectedQty: number) =>
-    overrides[lineId] ?? String(expectedQty);
+  // 피킹 실적이 있으면(출고) 그 수량을 기본값으로 — 실제로 확인한 실물 수량이 예정수량보다 신뢰도가 높다
+  const qtyOf = (lineId: string, expectedQty: number, pickedQty: number | null) =>
+    overrides[lineId] ?? String(pickedQty ?? expectedQty);
 
   const handleClose = () => {
     setOverrides({});
@@ -61,7 +63,7 @@ export function ProcessDialog({
 
   const parsedLines = (lines ?? []).map((line) => ({
     orderItemId: line.id,
-    qty: Number.parseInt(qtyOf(line.id, line.expectedQty), 10),
+    qty: Number.parseInt(qtyOf(line.id, line.expectedQty, line.pickedQty), 10),
   }));
   const invalid = parsedLines.some((l) => !Number.isInteger(l.qty) || l.qty < 0);
 
@@ -102,6 +104,7 @@ export function ProcessDialog({
                 <TableRow className="bg-muted/50 hover:bg-muted/50">
                   <TableHead className="text-xs">품목</TableHead>
                   <TableHead className="text-right text-xs">예정수량</TableHead>
+                  <TableHead className="text-right text-xs">피킹수량</TableHead>
                   <TableHead className="w-28 text-right text-xs">확정수량</TableHead>
                 </TableRow>
               </TableHeader>
@@ -117,11 +120,14 @@ export function ProcessDialog({
                     <TableCell className="text-right tabular-nums">
                       {num.format(line.expectedQty)}
                     </TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                      {line.pickedQty === null ? "—" : num.format(line.pickedQty)}
+                    </TableCell>
                     <TableCell>
                       <Input
                         type="number"
                         min={0}
-                        value={qtyOf(line.id, line.expectedQty)}
+                        value={qtyOf(line.id, line.expectedQty, line.pickedQty)}
                         onChange={(e) =>
                           setOverrides((prev) => ({ ...prev, [line.id]: e.target.value }))
                         }

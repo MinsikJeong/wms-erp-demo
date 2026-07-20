@@ -25,7 +25,7 @@ const RESPONSE_SCHEMA = {
     dateTo: { type: "STRING", description: "YYYY-MM-DD 또는 빈 문자열" },
     warehouseCode: { type: "STRING", description: "창고 코드 정확 일치 또는 빈 문자열" },
     partner: { type: "STRING", description: "거래처 검색어 또는 빈 문자열" },
-    status: { type: "STRING", enum: ["SCHEDULED", "PROCESSED", "VOUCHERED", "ANY"] },
+    status: { type: "STRING", enum: ["SCHEDULED", "PICKING", "PROCESSED", "VOUCHERED", "ANY"] },
     explanation: { type: "STRING", description: "이해한 내용 한 문장 요약 (한국어)" },
     unsupportedReason: { type: "STRING", description: "action이 unsupported일 때만 사유" },
   },
@@ -46,17 +46,18 @@ ${warehouseList}
 
 ## 액션 정의
 - query_orders: 입·출고 문서를 조회/확인 ("보여줘", "몇 건이야", "찾아줘")
-- cancel_orders: 예정(SCHEDULED) 상태 문서 취소 ("취소해줘", "삭제해줘")
-- process_orders: 예정 문서를 예정 수량 그대로 일괄 처리 확정 ("처리해줘", "확정해줘")
+- cancel_orders: 예정(SCHEDULED)/피킹중(PICKING) 상태 문서 취소 ("취소해줘", "삭제해줘")
+- process_orders: 예정/피킹중 문서를 예정 수량 그대로 일괄 처리 확정 ("처리해줘", "확정해줘")
+  — 출고 문서 중 피킹중(PICKING) 문서는 이미 기록된 피킹 수량이 아니라 예정 수량으로 확정된다
 - create_vouchers: 처리완료(PROCESSED) 문서의 ERP 전표 일괄 생성 ("전표 만들어줘", "전표 발행해줘")
-- unsupported: 위 4개로 표현 불가한 요청 (예: 수량 수정, 신규 등록, 재고 조정, 창고 추가, 시스템 설정)
+- unsupported: 위 4개로 표현 불가한 요청 (예: 수량 수정, 신규 등록, 재고 조정, 창고 추가, 시스템 설정, 개별 품목 피킹 수량 입력)
 
 ## 규칙
 - direction: 입고=IN, 출고=OUT, 언급 없으면 ANY
 - 날짜 표현은 오늘 날짜 기준 YYYY-MM-DD 범위로 변환 (예: "오늘" → dateFrom=dateTo=오늘, "이번 주" → 월요일~일요일, "어제" → 어제 하루). 언급 없으면 둘 다 빈 문자열
 - warehouseCode: 창고 이름·지역이 언급되면 목록에서 코드를 고른다. 애매하면 빈 문자열
 - partner: 거래처/공급처/출고처 상호가 언급되면 그대로 (부분 일치 검색에 쓰임). 없으면 빈 문자열
-- status: query_orders에서만 의미 있음 ("예정"=SCHEDULED, "처리완료"=PROCESSED, "전표완료"=VOUCHERED). 언급 없거나 변경 액션이면 ANY
+- status: query_orders에서만 의미 있음 ("예정"=SCHEDULED, "피킹중"=PICKING, "처리완료"=PROCESSED, "전표완료"=VOUCHERED). 언급 없거나 변경 액션이면 ANY
 - explanation: 이해한 조건을 한국어 한 문장으로. 사용자가 이걸 보고 실행 여부를 판단한다
 - 조건이 하나도 없는 전체 취소/전체 처리 요청도 그대로 변환한다 (건수 상한은 시스템이 막는다)
 
@@ -76,7 +77,7 @@ function sanitizePlan(raw: unknown): AiPlan {
   const direction = ["IN", "OUT", "ANY"].includes(str(obj.direction))
     ? (str(obj.direction) as AiPlan["direction"])
     : "ANY";
-  const status = ["SCHEDULED", "PROCESSED", "VOUCHERED", "ANY"].includes(str(obj.status))
+  const status = ["SCHEDULED", "PICKING", "PROCESSED", "VOUCHERED", "ANY"].includes(str(obj.status))
     ? (str(obj.status) as AiPlan["status"])
     : "ANY";
   const dateFrom = dateRe.test(str(obj.dateFrom)) ? str(obj.dateFrom) : "";

@@ -10,6 +10,7 @@ import {
   CalendarPlus,
   ClipboardList,
   LayoutDashboard,
+  ListChecks,
   Loader2,
   PackageCheck,
   ReceiptText,
@@ -27,7 +28,7 @@ import { cn } from "@/lib/utils";
  * 권한 기반 내비게이션 (데스크톱 사이드바 / 모바일 Sheet 공용).
  *
  * WMS 메뉴 트리: 창고관리 / 입고관리(예정→현황→처리→전표) /
- * 출고관리(동일 흐름) / 재고현황 / 관리.
+ * 출고관리(예정→현황→피킹→처리→전표, 피킹 단계만 출고 전용) / 재고현황 / 관리.
  * 데이터 변경 메뉴(등록·처리·전표)는 OPERATOR 이상만 노출하며,
  * 최종 방어선은 각 페이지의 서버 사이드 권한 가드다.
  */
@@ -79,6 +80,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/outbound/new", label: "출고예정", icon: CalendarClock, minRole: "OPERATOR" },
       { href: "/outbound", label: "출고예정현황", icon: ClipboardList, minRole: "VIEWER" },
+      { href: "/outbound/picking", label: "출고피킹", icon: ListChecks, minRole: "OPERATOR" },
       { href: "/outbound/process", label: "출고처리", icon: Truck, minRole: "OPERATOR" },
       { href: "/outbound/vouchers", label: "ERP 전표생성(출고)", icon: ReceiptText, minRole: "OPERATOR" },
     ],

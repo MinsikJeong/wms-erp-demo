@@ -18,6 +18,7 @@
 | **입고예정 등록**의 품목 선택 | 타이핑하면 서버에서 SKU/품목명을 검색합니다(전량 로드 없음). ↑/↓/Enter 키보드 선택 지원. |
 | **창고관리** 지도 / **창고별재고현황** 평면도 | 지도 마커 → 창고별 재고 요약 → 상세 화면 링크. 평면도의 존을 클릭하면 아래 테이블이 해당 존으로 필터링됩니다. |
 | 입고처리 → ERP 전표생성 | 예정 등록 → 실물 수량 확정(재고 반영) → 전표 발행까지 물류 문서의 전체 수명주기를 따라가 볼 수 있습니다. |
+| **출고피킹** | 출고예정 문서를 존(Zone) 동선 순서로 정렬해 보여주고, 품목별 피킹 수량을 기록합니다(재고 미반영, 상태만 SCHEDULED→PICKING 전이). 이후 출고처리에서는 이 피킹 수량이 기본 확정값으로 채워집니다. |
 
 ### 권한(RBAC) 데모 — 조회 전용으로 전환한 화면
 
@@ -82,7 +83,8 @@ NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key>
 GEMINI_API_KEY=<gemini api key>   # AI 어시스턴트용 (서버 전용)
 
-# 3. DB 초기화 — Supabase Dashboard > SQL Editor에서 순서대로 1회 실행
+# 3. DB 초기화 — supabase/ 폴더의 SQL을 Supabase Dashboard > SQL Editor에서 순서대로 1회 실행
+#    (스키마/시드 SQL은 로컬 전용이라 저장소에는 커밋되지 않습니다 — .gitignore 참고)
 #    supabase/wms-seed.sql          (스키마 + RPC + 시드 데이터)
 #    supabase/02-warehouse-map.sql  (창고 좌표 + 존/평면도)
 #    supabase/03-ai-assistant.sql   (예정 취소 RPC — AI 어시스턴트)
@@ -101,7 +103,7 @@ app/
     dashboard/          # 메인 대시보드 (KPI·차트·최근 활동)
     assistant/          # AI 어시스턴트 (자연어 → 미리보기 → 확인 실행)
     inbound/            # 입고: 예정 등록 → 현황 → 처리 → ERP 전표
-    outbound/           # 출고: 동일 흐름
+    outbound/           # 출고: 예정 등록 → 현황 → 피킹(존 동선) → 처리 → ERP 전표
     inventory/          # 재고현황 / 창고별재고현황(평면도)
     warehouses/         # 창고 마스터 + 물류 거점 지도
     management/users/   # 사용자/권한 관리 (ADMIN 전용)

@@ -199,8 +199,11 @@ export interface OrdersParams {
   pageSize: number;
   sortBy: OrdersSortKey;
   sortDir: "asc" | "desc";
-  /** 빈 문자열 = 필터 미적용 (queryKey 형태 고정을 위해 undefined 대신 사용) */
-  status: WmsOrderStatus | "";
+  /**
+   * 빈 문자열 = 필터 미적용 (queryKey 형태 고정을 위해 undefined 대신 사용).
+   * 배열을 넘기면 여러 상태를 동시에 조회한다 (예: 출고처리 대상 = SCHEDULED + PICKING).
+   */
+  status: WmsOrderStatus | WmsOrderStatus[] | "";
   warehouseId: string;
   dateFrom: string;
   dateTo: string;
@@ -248,6 +251,7 @@ interface WmsOrderDbRow {
   item_kinds: number;
   total_expected_qty: number;
   total_processed_qty: number;
+  total_picked_qty: number;
   voucher_no: string | null;
 }
 
@@ -268,6 +272,7 @@ function toOrderRow(db: WmsOrderDbRow): WmsOrderRow {
     itemKinds: db.item_kinds,
     totalExpectedQty: db.total_expected_qty,
     totalProcessedQty: db.total_processed_qty,
+    totalPickedQty: db.total_picked_qty,
     voucherNo: db.voucher_no,
   };
 }
@@ -281,7 +286,11 @@ export async function fetchOrdersPage(
     .select("*", { count: "exact" })
     .eq("direction", params.direction);
 
-  if (params.status) q = q.eq("status", params.status);
+  if (Array.isArray(params.status)) {
+    if (params.status.length > 0) q = q.in("status", params.status);
+  } else if (params.status) {
+    q = q.eq("status", params.status);
+  }
   if (params.warehouseId) q = q.eq("warehouse_id", params.warehouseId);
   if (params.dateFrom) q = q.gte("expected_date", params.dateFrom);
   if (params.dateTo) q = q.lte("expected_date", params.dateTo);
@@ -301,31 +310,36 @@ export async function fetchOrdersPage(
   return { rows: (data as WmsOrderDbRow[]).map(toOrderRow), total: count ?? 0 };
 }
 
-/** 문서 상세 라인 — 처리 다이얼로그에서 품목·수량 확인/확정용 */
+/**
+ * 문서 상세 라인 — 피킹/처리 다이얼로그에서 품목·존·수량 확인/확정용 (v_order_lines 뷰).
+ * 존 코드(zone_code) 오름차순으로 정렬해 그대로 피킹 동선(적재 위치 순회) 순서가 되게 한다.
+ */
 export async function fetchOrderLines(
   client: SupabaseClient,
   orderId: string,
 ): Promise<WmsOrderLine[]> {
   const { data, error } = await client
-    .from("wms_order_items")
-    .select("id, expected_qty, processed_qty, item:items(id, sku, name, unit, unit_price)")
+    .from("v_order_lines")
+    .select(
+      "id, item_id, sku, item_name, unit, unit_price, expected_qty, processed_qty, picked_qty, picked_at, zone_code",
+    )
     .eq("order_id", orderId)
+    .order("zone_code", { ascending: true, nullsFirst: false })
     .order("id");
   if (error) throwQueryError(error);
-  return data.map((line) => {
-    // PostgREST 임베드는 단일 관계여도 타입상 배열일 수 있어 방어적으로 정규화
-    const item = Array.isArray(line.item) ? line.item[0] : line.item;
-    return {
-      id: line.id,
-      itemId: item.id,
-      sku: item.sku,
-      itemName: item.name,
-      unit: item.unit,
-      unitPrice: item.unit_price,
-      expectedQty: line.expected_qty,
-      processedQty: line.processed_qty,
-    };
-  });
+  return data.map((line) => ({
+    id: line.id,
+    itemId: line.item_id,
+    sku: line.sku,
+    itemName: line.item_name,
+    unit: line.unit,
+    unitPrice: line.unit_price,
+    expectedQty: line.expected_qty,
+    processedQty: line.processed_qty,
+    pickedQty: line.picked_qty,
+    pickedAt: line.picked_at,
+    zoneCode: line.zone_code,
+  }));
 }
 
 /* ------------------------------------------------------------------ */
@@ -634,6 +648,23 @@ export async function createOrder(
     p_expected_date: input.expectedDate,
     p_memo: input.memo,
     p_items: input.lines.map((l) => ({ item_id: l.itemId, qty: l.qty })),
+  });
+  if (error) throwQueryError(error);
+  return data as string;
+}
+
+/**
+ * 피킹 실적 기록(출고 전용) → 문서번호 반환.
+ * 재고에는 영향이 없으며, 최초 저장 시 문서 상태를 SCHEDULED→PICKING으로 전이시킨다.
+ */
+export async function recordPicking(
+  client: SupabaseClient,
+  orderId: string,
+  lines: { orderItemId: string; pickedQty: number }[],
+): Promise<string> {
+  const { data, error } = await client.rpc("wms_record_picking", {
+    p_order_id: orderId,
+    p_lines: lines.map((l) => ({ order_item_id: l.orderItemId, picked_qty: l.pickedQty })),
   });
   if (error) throwQueryError(error);
   return data as string;

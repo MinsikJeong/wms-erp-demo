@@ -33,12 +33,20 @@ import type { Direction, WmsOrderStatus } from "@/lib/wms/types";
  * 4. 실제 변경은 기존 security definer RPC만 통과 — DB가 최종 정합성을 지킨다.
  */
 
-/** 변경 액션별 전제 상태 — 이 상태의 문서만 대상이 된다 */
-const ACTION_PRECONDITION: Partial<Record<AiAction, WmsOrderStatus>> = {
-  cancel_orders: "SCHEDULED",
-  process_orders: "SCHEDULED",
+/**
+ * 변경 액션별 전제 상태 — 이 상태(들)의 문서만 대상이 된다.
+ * cancel/process는 출고 PICKING(피킹중) 문서도 대상에 포함한다 — 재고에 아직
+ * 영향이 없는 단계라 취소·처리 모두 안전하다.
+ */
+const ACTION_PRECONDITION: Partial<Record<AiAction, WmsOrderStatus | WmsOrderStatus[]>> = {
+  cancel_orders: ["SCHEDULED", "PICKING"],
+  process_orders: ["SCHEDULED", "PICKING"],
   create_vouchers: "PROCESSED",
 };
+
+function preconditionList(precondition: WmsOrderStatus | WmsOrderStatus[]): WmsOrderStatus[] {
+  return Array.isArray(precondition) ? precondition : [precondition];
+}
 
 const MUTATING_ACTIONS: AiAction[] = ["cancel_orders", "process_orders", "create_vouchers"];
 
@@ -77,7 +85,11 @@ async function queryPlanTargets(
     );
 
   if (plan.direction !== "ANY") q = q.eq("direction", plan.direction);
-  if (status) q = q.eq("status", status);
+  if (Array.isArray(status)) {
+    if (status.length > 0) q = q.in("status", status);
+  } else if (status) {
+    q = q.eq("status", status);
+  }
   if (plan.dateFrom) q = q.gte("expected_date", plan.dateFrom);
   if (plan.dateTo) q = q.lte("expected_date", plan.dateTo);
   if (plan.warehouseCode) q = q.eq("warehouse_code", plan.warehouseCode);
@@ -203,7 +215,7 @@ export async function executeAiPlan(
       items.push({ orderNo: orderId.slice(0, 8), ok: false, message: "문서를 찾을 수 없습니다" });
       continue;
     }
-    if (row.status !== precondition) {
+    if (!preconditionList(precondition).includes(row.status)) {
       items.push({
         orderNo: row.order_no,
         ok: false,

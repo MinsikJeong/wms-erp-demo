@@ -21,6 +21,7 @@ import {
   fetchWmsSummary,
   fetchZoneInventory,
   processOrder,
+  recordPicking,
   searchItems,
   wmsKeys,
   type CreateOrderInput,
@@ -156,6 +157,20 @@ export function useCreateOrder() {
     mutationFn: (input: CreateOrderInput) => createOrder(supabase(), input),
     onSuccess: (orderNo) => {
       toast.success(`예정 등록 완료: ${orderNo}`);
+      invalidate();
+    },
+    onError: (error) => toast.error(humanizeDbError(error.message)),
+  });
+}
+
+/** 피킹 실적 저장 — 재고에는 영향 없지만 목록/요약 캐시는 갱신해 상태 배지를 즉시 반영 */
+export function useRecordPicking() {
+  const invalidate = useInvalidateWms();
+  return useMutation({
+    mutationFn: (input: { orderId: string; lines: { orderItemId: string; pickedQty: number }[] }) =>
+      recordPicking(supabase(), input.orderId, input.lines),
+    onSuccess: (orderNo) => {
+      toast.success(`피킹 저장 완료: ${orderNo}`);
       invalidate();
     },
     onError: (error) => toast.error(humanizeDbError(error.message)),

@@ -6,8 +6,11 @@
 /** 문서 구분 — IN(입고) / OUT(출고). UI와 RPC가 공용으로 사용한다 */
 export type Direction = "IN" | "OUT";
 
-/** 입·출고 문서 상태: 예정 → 처리완료 → 전표생성완료 */
-export const WMS_ORDER_STATUSES = ["SCHEDULED", "PROCESSED", "VOUCHERED"] as const;
+/**
+ * 입·출고 문서 상태: 예정 → (출고만) 피킹중 → 처리완료 → 전표생성완료.
+ * PICKING은 출고(OUT) 전용 중간 상태 — 입고 문서는 SCHEDULED에서 바로 PROCESSED로 넘어간다.
+ */
+export const WMS_ORDER_STATUSES = ["SCHEDULED", "PICKING", "PROCESSED", "VOUCHERED"] as const;
 export type WmsOrderStatus = (typeof WMS_ORDER_STATUSES)[number];
 
 export interface Warehouse {
@@ -65,10 +68,12 @@ export interface WmsOrderRow {
   itemKinds: number;
   totalExpectedQty: number;
   totalProcessedQty: number;
+  /** 피킹 확정 수량 합계 — 출고 문서에서만 의미 있음(입고는 항상 0) */
+  totalPickedQty: number;
   voucherNo: string | null;
 }
 
-/** 문서 상세 라인 (처리 다이얼로그·상세 표시용) */
+/** 문서 상세 라인 (피킹·처리 다이얼로그·상세 표시용, v_order_lines 뷰) */
 export interface WmsOrderLine {
   id: string;
   itemId: string;
@@ -78,6 +83,11 @@ export interface WmsOrderLine {
   unitPrice: number;
   expectedQty: number;
   processedQty: number | null;
+  /** 피킹 확정 수량 — 출고 문서에서만 존재, 미착수 시 null */
+  pickedQty: number | null;
+  pickedAt: string | null;
+  /** 고정 로케이션(존) — 피킹 동선 정렬 기준, 재고가 없던 품목이면 null */
+  zoneCode: string | null;
 }
 
 /** ERP 전표 목록 행 (v_vouchers 뷰) */
@@ -145,7 +155,10 @@ export interface WmsSummary {
   todayInbound: number;
   todayOutbound: number;
   pendingInbound: number;
+  /** 출고처리 대기 — SCHEDULED + PICKING 합계 */
   pendingOutbound: number;
+  /** 피킹 진행중(PICKING) 건수 — pendingOutbound의 부분집합 */
+  pickingCount: number;
   unvoucheredCount: number;
   lowStockCount: number;
   totalInventoryValue: number;

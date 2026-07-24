@@ -18,11 +18,11 @@ export default async function DashboardLayout({
   const user = await getCurrentUser();
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-muted/40">
+    <div className="flex h-dvh overflow-hidden bg-background">
       <Sidebar role={user.role} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Header user={user} />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">{children}</main>
       </div>
     </div>
   );

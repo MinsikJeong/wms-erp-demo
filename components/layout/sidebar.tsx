@@ -9,17 +9,17 @@ import type { UserRole } from "@/lib/types";
  */
 export function Sidebar({ role }: { role: UserRole }) {
   return (
-    <aside className="hidden w-60 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground lg:flex">
-      <div className="flex h-14 shrink-0 items-center border-b px-4">
+    <aside className="hidden w-64 shrink-0 flex-col border-r border-border/70 bg-sidebar text-sidebar-foreground lg:flex">
+      <div className="flex h-16 shrink-0 items-center border-b border-border/70 px-5">
         <Brand />
       </div>
       <NavLinks role={role} />
       {/* 포트폴리오 데모임을 명시 — 채용 담당자용 안내 */}
-      <div className="border-t px-4 py-3">
-        <div className="flex items-center gap-2 rounded-lg bg-accent/60 px-3 py-2">
-          <Sparkles className="size-3.5 shrink-0 text-accent-foreground" aria-hidden />
-          <p className="text-[11px] leading-snug text-accent-foreground">
-            포트폴리오 데모 — 우측 상단에서 권한을 바꿔보세요
+      <div className="px-4 pb-4">
+        <div className="flex items-center gap-2 rounded-2xl bg-accent px-3.5 py-3">
+          <Sparkles className="size-4 shrink-0 text-accent-foreground" aria-hidden />
+          <p className="text-[11px] leading-snug font-medium text-accent-foreground">
+            포트폴리오 데모 — 로그인 계정의 권한으로 메뉴가 노출됩니다
           </p>
         </div>
       </div>

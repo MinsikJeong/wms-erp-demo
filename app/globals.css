@@ -46,6 +46,14 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /*
+   * 토스 스타일 소프트 섀도우 — 하드 보더/링 대신 은은한 그림자로 면을 띄운다.
+   * card: 평상시(거의 평평), card-hover: 인터랙션 시 살짝 부양.
+   */
+  --shadow-card: 0 1px 2px 0 rgb(17 24 39 / 0.04), 0 1px 3px 0 rgb(17 24 39 / 0.03);
+  --shadow-card-hover: 0 6px 20px -4px rgb(17 24 39 / 0.1), 0 2px 6px -2px rgb(17 24 39 / 0.05);
+  --shadow-pop: 0 8px 30px -6px rgb(17 24 39 / 0.14), 0 2px 8px -2px rgb(17 24 39 / 0.06);
 }
 
 body {
@@ -54,42 +62,46 @@ body {
 
 /*
  * 라이트 테마 고정 (다크 전환 금지 — .dark 클래스는 어디에서도 설정하지 않는다).
- * 뉴트럴: 쿨 그레이(hue 264) / 포인트: 인디고(hue 277) — 검증 포인트에만 사용.
+ * 토스(Toss) 디자인 랭귀지 기반:
+ *  - 뉴트럴: 토스 그레이 스케일 (배경 #F9FAFB, 서피스 #F2F4F6, 보더 #E5E8EB,
+ *    본문 #333D4B, 헤딩 #191F28, 서브 #8B95A1) — hue 250 계열 쿨 그레이.
+ *  - 포인트: Toss Blue #3182F6 — CTA/링크/활성 상태에만 사용.
+ *  - 라운드는 크게(0.875rem), 면은 하드 보더가 아닌 소프트 섀도우로 띄운다.
  * 차트 토큰(chart-1~5)은 CVD 검증을 통과한 카테고리컬 팔레트 고정 순서.
  */
 :root {
-  --background: oklch(0.977 0.004 264.5);
-  --foreground: oklch(0.16 0.02 262);
+  --background: oklch(0.984 0.003 247);       /* #F9FAFB */
+  --foreground: oklch(0.245 0.02 258);        /* #191F28 헤딩 */
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.16 0.02 262);
+  --card-foreground: oklch(0.245 0.02 258);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.16 0.02 262);
-  --primary: oklch(0.511 0.222 277);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.955 0.006 264.5);
-  --secondary-foreground: oklch(0.25 0.02 262);
-  --muted: oklch(0.955 0.006 264.5);
-  --muted-foreground: oklch(0.53 0.024 264.4);
-  --accent: oklch(0.945 0.012 272);
-  --accent-foreground: oklch(0.36 0.12 277);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.918 0.008 264.5);
-  --input: oklch(0.905 0.01 264.5);
-  --ring: oklch(0.6 0.16 277);
-  --chart-1: #2a78d6;
+  --popover-foreground: oklch(0.245 0.02 258);
+  --primary: oklch(0.626 0.184 257);          /* Toss Blue #3182F6 */
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.968 0.003 247);        /* #F2F4F6 */
+  --secondary-foreground: oklch(0.34 0.02 258);
+  --muted: oklch(0.968 0.003 247);            /* #F2F4F6 */
+  --muted-foreground: oklch(0.63 0.017 252);  /* #8B95A1 */
+  --accent: oklch(0.955 0.023 255);           /* Toss Blue 연한 틴트 */
+  --accent-foreground: oklch(0.52 0.17 257);
+  --destructive: oklch(0.585 0.222 24);       /* 토스 레드 #F04452 계열 */
+  --border: oklch(0.925 0.004 247);           /* #E5E8EB */
+  --input: oklch(0.912 0.005 247);            /* #DEE1E5 */
+  --ring: oklch(0.626 0.184 257);
+  --chart-1: #3182f6;
   --chart-2: #1baf7a;
-  --chart-3: #eda100;
-  --chart-4: #4a3aa7;
-  --chart-5: #e34948;
-  --radius: 0.625rem;
-  --sidebar: oklch(0.993 0.002 264.5);
-  --sidebar-foreground: oklch(0.16 0.02 262);
-  --sidebar-primary: oklch(0.511 0.222 277);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.945 0.012 272);
-  --sidebar-accent-foreground: oklch(0.36 0.12 277);
-  --sidebar-border: oklch(0.925 0.007 264.5);
-  --sidebar-ring: oklch(0.6 0.16 277);
+  --chart-3: #ffab00;
+  --chart-4: #7048e8;
+  --chart-5: #f04452;
+  --radius: 0.875rem;
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.245 0.02 258);
+  --sidebar-primary: oklch(0.626 0.184 257);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.955 0.023 255);
+  --sidebar-accent-foreground: oklch(0.52 0.17 257);
+  --sidebar-border: oklch(0.93 0.004 247);
+  --sidebar-ring: oklch(0.626 0.184 257);
 }
 
 .dark {

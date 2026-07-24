@@ -1,14 +1,22 @@
 "use client";
 
-import { Menu } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import { useState } from "react";
+import { signOut } from "@/app/(auth)/actions";
 import { Brand } from "@/components/layout/brand";
 import { NavLinks } from "@/components/layout/nav-links";
-import { RoleSwitcher } from "@/components/layout/role-switcher";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import type { SessionUser } from "@/lib/types";
+import type { SessionUser, UserRole } from "@/lib/types";
+
+/** 권한 → 한국어 라벨 (헤더 역할 뱃지용) */
+const ROLE_LABEL: Record<UserRole, string> = {
+  ADMIN: "관리자",
+  OPERATOR: "운영자",
+  VIEWER: "조회 전용",
+};
 
 /** 오늘 날짜 — 서버/클라이언트가 같은 값을 렌더하도록 날짜 단위까지만 표기 */
 const TODAY = new Intl.DateTimeFormat("ko-KR", {
@@ -28,7 +36,7 @@ export function Header({ user }: { user: SessionUser }) {
   const initial = user.name.trim().slice(-1) || "?";
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b bg-card/80 px-4 backdrop-blur md:px-6">
+    <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-border/70 bg-card/80 px-4 backdrop-blur-md md:px-6">
       <div className="flex min-w-0 items-center gap-2">
         {/* 모바일 내비게이션 (lg 미만) */}
         <Sheet open={navOpen} onOpenChange={setNavOpen}>
@@ -56,11 +64,14 @@ export function Header({ user }: { user: SessionUser }) {
       </div>
 
       <div className="flex items-center gap-2.5 md:gap-3">
-        <RoleSwitcher role={user.role} />
+        {/* 현재 로그인 계정의 권한 — 회원가입 시 선택한 값이 고정 표시된다 */}
+        <Badge variant="default" className="hidden sm:inline-flex">
+          {ROLE_LABEL[user.role]}
+        </Badge>
         <Separator orientation="vertical" className="hidden h-6! sm:block" />
         <div className="flex items-center gap-2">
           <div
-            className="flex size-8 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-indigo-500 to-indigo-700 text-xs font-semibold text-white"
+            className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white shadow-[0_2px_8px_-2px] shadow-primary/40"
             aria-hidden
           >
             {initial}
@@ -70,6 +81,18 @@ export function Header({ user }: { user: SessionUser }) {
             <p className="text-xs text-muted-foreground">{user.department}</p>
           </div>
         </div>
+        {/* 로그아웃 — 서버 액션이 세션을 파기하고 /login으로 보낸다 */}
+        <form action={signOut}>
+          <Button
+            type="submit"
+            variant="ghost"
+            size="icon"
+            aria-label="로그아웃"
+            title="로그아웃"
+          >
+            <LogOut aria-hidden />
+          </Button>
+        </form>
       </div>
     </header>
   );

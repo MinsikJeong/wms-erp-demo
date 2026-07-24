@@ -94,8 +94,8 @@ export function SummaryCards({ summary }: { summary: WmsSummary }) {
           <Card
             size="sm"
             className={cn(
-              "h-full transition-shadow group-hover:shadow-md group-focus-visible:ring-2 group-focus-visible:ring-ring",
-              metric.accent && "bg-amber-50/60 ring-amber-200",
+              "h-full transition-all group-hover:-translate-y-0.5 group-hover:shadow-card-hover group-focus-visible:ring-2 group-focus-visible:ring-ring",
+              metric.accent && "bg-amber-50/70",
             )}
           >
             <CardContent className="space-y-2.5">
@@ -114,7 +114,7 @@ export function SummaryCards({ summary }: { summary: WmsSummary }) {
               <div>
                 <p
                   className={cn(
-                    "text-xl font-semibold tracking-tight tabular-nums md:text-2xl",
+                    "text-xl font-bold tracking-tight tabular-nums md:text-2xl",
                     metric.accent ? "text-amber-700" : "text-foreground",
                   )}
                 >

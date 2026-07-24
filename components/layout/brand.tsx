@@ -8,8 +8,8 @@ import { cn } from "@/lib/utils";
 export function Brand({ className }: { className?: string }) {
   return (
     <div className={cn("flex items-center gap-2.5", className)}>
-      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-indigo-500 to-indigo-700 shadow-sm">
-        <Warehouse className="size-4.5 text-white" aria-hidden />
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-[0.7rem] bg-primary shadow-[0_4px_12px_-2px] shadow-primary/40">
+        <Warehouse className="size-5 text-white" aria-hidden />
       </div>
       <div className="leading-tight">
         <p className="text-sm font-bold tracking-tight text-foreground">StockFlow</p>

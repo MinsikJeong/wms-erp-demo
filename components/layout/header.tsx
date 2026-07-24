@@ -56,7 +56,7 @@ export function Header({ user }: { user: SessionUser }) {
         </Sheet>
 
         {/* 모바일에서는 브랜드, 데스크톱에서는 오늘 날짜 */}
-        <span className="text-sm font-bold tracking-tight lg:hidden">StockFlow</span>
+        <span className="text-sm font-bold tracking-tight lg:hidden">WarehouseERP</span>
         {/* 서버 타임존이 다르면 SSR/클라이언트 날짜가 어긋날 수 있어 경고 억제 */}
         <p suppressHydrationWarning className="hidden text-sm text-muted-foreground lg:block">
           {TODAY}
@@ -83,13 +83,7 @@ export function Header({ user }: { user: SessionUser }) {
         </div>
         {/* 로그아웃 — 서버 액션이 세션을 파기하고 /login으로 보낸다 */}
         <form action={signOut}>
-          <Button
-            type="submit"
-            variant="ghost"
-            size="icon"
-            aria-label="로그아웃"
-            title="로그아웃"
-          >
+          <Button type="submit" variant="ghost" size="icon" aria-label="로그아웃" title="로그아웃">
             <LogOut aria-hidden />
           </Button>
         </form>

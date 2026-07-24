@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { canMutate } from "@/lib/rbac";
 
 export const metadata: Metadata = {
-  title: "입고처리 | StockFlow",
+  title: "입고처리 | WarehouseERP",
 };
 
 /** 2-3. 입고처리 — 재고를 변경하므로 OPERATOR 이상만 접근 */

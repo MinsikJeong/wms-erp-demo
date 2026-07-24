@@ -11,7 +11,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { Warehouse } from "@/lib/wms/types";
 
 export const metadata: Metadata = {
-  title: "창고관리 | StockFlow",
+  title: "창고관리 | WarehouseERP",
 };
 
 /**

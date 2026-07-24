@@ -18,16 +18,10 @@ import {
   fetchWmsSummary,
 } from "@/lib/wms/api";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import type {
-  CategoryShare,
-  DailyFlow,
-  WarehouseStockSummary,
-  WmsOrderRow,
-  WmsSummary,
-} from "@/lib/wms/types";
+import type { CategoryShare, DailyFlow, WarehouseStockSummary, WmsOrderRow, WmsSummary } from "@/lib/wms/types";
 
 export const metadata: Metadata = {
-  title: "대시보드 | StockFlow",
+  title: "대시보드 | WarehouseERP",
 };
 
 interface DashboardData {

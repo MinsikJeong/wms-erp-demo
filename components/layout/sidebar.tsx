@@ -15,14 +15,14 @@ export function Sidebar({ role }: { role: UserRole }) {
       </div>
       <NavLinks role={role} />
       {/* 포트폴리오 데모임을 명시 — 채용 담당자용 안내 */}
-      <div className="px-4 pb-4">
+      {/* <div className="px-4 pb-4">
         <div className="flex items-center gap-2 rounded-2xl bg-accent px-3.5 py-3">
           <Sparkles className="size-4 shrink-0 text-accent-foreground" aria-hidden />
           <p className="text-[11px] leading-snug font-medium text-accent-foreground">
             포트폴리오 데모 — 로그인 계정의 권한으로 메뉴가 노출됩니다
           </p>
         </div>
-      </div>
+      </div> */}
     </aside>
   );
 }

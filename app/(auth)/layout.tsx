@@ -4,11 +4,7 @@ import { Warehouse } from "lucide-react";
  * 인증 화면 공통 레이아웃 ((auth) 라우트 그룹 — 사이드바/헤더 없음).
  * 토스 스타일: 옅은 그레이 캔버스 위, 화면 중앙에 브랜드 + 카드형 폼.
  */
-export default function AuthLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-background px-5 py-10">
       <div className="w-full max-w-[400px]">
@@ -18,16 +14,12 @@ export default function AuthLayout({
             <Warehouse className="size-7 text-white" aria-hidden />
           </div>
           <div>
-            <p className="text-2xl font-bold tracking-tight text-foreground">StockFlow</p>
+            <p className="text-2xl font-bold tracking-tight text-foreground">WarehouseERP</p>
             <p className="mt-1 text-sm text-muted-foreground">WMS · 창고관리 시스템</p>
           </div>
         </div>
 
         {children}
-
-        <p className="mt-8 text-center text-xs text-muted-foreground/80">
-          포트폴리오 데모 — 실제 Supabase 이메일 인증으로 동작합니다
-        </p>
       </div>
     </div>
   );

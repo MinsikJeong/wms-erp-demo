@@ -16,7 +16,6 @@ import {
   ReceiptText,
   Sparkles,
   Truck,
-  Users,
   Warehouse,
   type LucideIcon,
 } from "lucide-react";
@@ -90,12 +89,6 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/inventory", label: "재고현황", icon: Boxes, minRole: "VIEWER" },
       { href: "/inventory/warehouse", label: "창고별재고현황", icon: Building2, minRole: "VIEWER" },
-    ],
-  },
-  {
-    title: "관리",
-    items: [
-      { href: "/management/users", label: "사용자/권한 관리", icon: Users, minRole: "ADMIN" },
     ],
   },
 ];

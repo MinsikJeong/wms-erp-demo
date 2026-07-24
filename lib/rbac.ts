@@ -29,11 +29,6 @@ export function canMutate(role: UserRole): boolean {
   return hasRole(role, "OPERATOR");
 }
 
-/** 사용자/권한 관리 메뉴 접근 여부 */
-export function canManageUsers(role: UserRole): boolean {
-  return hasRole(role, "ADMIN");
-}
-
 /**
  * 금액 마스킹.
  * 권한이 없으면 자릿수조차 노출하지 않도록 고정 길이 마스크를 반환한다.

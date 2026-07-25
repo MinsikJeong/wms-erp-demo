@@ -15,7 +15,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           </div>
           <div>
             <p className="text-2xl font-bold tracking-tight text-foreground">WarehouseERP</p>
-            <p className="mt-1 text-sm text-muted-foreground">WMS · 창고관리 시스템</p>
+            <p className="mt-1 text-sm text-muted-foreground">창고관리 시스템</p>
           </div>
         </div>
 

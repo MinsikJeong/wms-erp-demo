@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "WarehouseERP — 창고관리 시스템 (WMS)",
+  title: "WarehouseERP — 창고관리 시스템",
   description: "창고·입고·출고·재고 관리와 ERP 전표 연동을 위한 사내 WMS 인트라넷",
 };
 

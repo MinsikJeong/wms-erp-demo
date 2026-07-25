@@ -48,22 +48,18 @@ interface NavSection {
 const NAV_SECTIONS: NavSection[] = [
   {
     title: "홈",
-    items: [
-      { href: "/dashboard", label: "대시보드", icon: LayoutDashboard, minRole: "VIEWER" },
-    ],
+    items: [{ href: "/dashboard", label: "대시보드", icon: LayoutDashboard, minRole: "VIEWER" }],
   },
   {
-    title: "AI",
+    title: "AI 창고 관리",
     items: [
       // 조회는 VIEWER도 가능 — 변경 실행은 서버 액션이 OPERATOR 이상을 강제
-      { href: "/assistant", label: "AI 어시스턴트", icon: Sparkles, minRole: "VIEWER" },
+      { href: "/assistant", label: "AI 창고 관리", icon: Sparkles, minRole: "VIEWER" },
     ],
   },
   {
     title: "창고관리",
-    items: [
-      { href: "/warehouses", label: "창고관리", icon: Warehouse, minRole: "VIEWER" },
-    ],
+    items: [{ href: "/warehouses", label: "창고관리", icon: Warehouse, minRole: "VIEWER" }],
   },
   {
     title: "입고관리",
@@ -124,9 +120,7 @@ export function NavLinks({
     <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-5">
       {NAV_SECTIONS.map((section) => {
         // 권한 미달 메뉴는 렌더링 자체를 생략 (섹션 전체가 비면 제목도 숨김)
-        const visibleItems = section.items.filter((item) =>
-          hasRole(role, item.minRole),
-        );
+        const visibleItems = section.items.filter((item) => hasRole(role, item.minRole));
         if (visibleItems.length === 0) return null;
 
         return (
@@ -155,14 +149,15 @@ export function NavLinks({
                       )}
                     >
                       <item.icon
-                        className={cn("size-4.5", active ? "text-primary" : "text-muted-foreground/70 group-hover:text-foreground")}
+                        className={cn(
+                          "size-4.5",
+                          active ? "text-primary" : "text-muted-foreground/70 group-hover:text-foreground",
+                        )}
                         aria-hidden
                       />
                       {item.label}
                       {/* 전환 중 표시 — 낙관적으로 이동한 항목에만 */}
-                      {showSpinner && (
-                        <Loader2 className="ml-auto size-3.5 animate-spin text-primary/70" aria-hidden />
-                      )}
+                      {showSpinner && <Loader2 className="ml-auto size-3.5 animate-spin text-primary/70" aria-hidden />}
                     </Link>
                   </li>
                 );

@@ -13,7 +13,7 @@ export function Brand({ className }: { className?: string }) {
       </div>
       <div className="leading-tight">
         <p className="text-sm font-bold tracking-tight text-foreground">WarehouseERP</p>
-        <p className="text-[10px] font-medium tracking-wide text-muted-foreground">WMS · 창고관리 시스템</p>
+        <p className="text-[10px] font-medium tracking-wide text-muted-foreground">창고관리 시스템</p>
       </div>
     </div>
   );

@@ -1,8 +1,7 @@
 "use client";
 
-import { LogOut, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 import { useState } from "react";
-import { signOut } from "@/app/(auth)/actions";
 import { Brand } from "@/components/layout/brand";
 import { NavLinks } from "@/components/layout/nav-links";
 import { Badge } from "@/components/ui/badge";
@@ -81,12 +80,6 @@ export function Header({ user }: { user: SessionUser }) {
             <p className="text-xs text-muted-foreground">{user.department}</p>
           </div>
         </div>
-        {/* 로그아웃 — 서버 액션이 세션을 파기하고 /login으로 보낸다 */}
-        <form action={signOut}>
-          <Button type="submit" variant="ghost" size="icon" aria-label="로그아웃" title="로그아웃">
-            <LogOut aria-hidden />
-          </Button>
-        </form>
       </div>
     </header>
   );
